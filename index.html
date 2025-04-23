@@ -1,24 +1,23 @@
-
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-    <meta charset="UTF-8">
-    <title>JISKRAtime – Atletika 2025</title>
-    <script type="module">
-        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
-
-        const SUPABASE_URL = 'https://lmcmwrehrmgygsnyofdf.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtY213cmVocm1neWdzbnlvZmRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyNjMzNzIsImV4cCI6MjA2MDgzOTM3Mn0.oJ7rRKOg2FAurmZanqvanyu4k0gnEXQfKawayZHeSBQ';
-        const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-        window.supabaseClient = supabase;
-    </script>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <title>JISKRAtime – Atletika 2025</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script>
+    const SUPABASE_URL = 'https://lmcmwrehrmgygsnyofdf.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtY213cmVocm1neWdzbnlvZmRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyNjMzNzIsImV4cCI6MjA2MDgzOTM3Mn0.oJ7rRKOg2FAurmZanqvanyu4k0gnEXQfKawayZHeSBQ';
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    window.supabaseClient = supabase;
+  </script>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>JISKRAtime – Zápis výsledků</h1>
-    <label for="disciplineSelect">Vyber disciplínu:</label>
-    <select id="disciplineSelect"></select>
-    <div id="formContainer" style="margin-top:20px;"></div>
-    <script src="script.js" type="module"></script>
+  <h1>JISKRAtime – Zápis výsledků</h1>
+  <label for="disciplineSelect">Vyber disciplínu:</label>
+  <select id="disciplineSelect"></select>
+  <div id="formContainer" style="margin-top:20px;"></div>
+  <div id="resultsContainer" style="margin-top:30px;"></div>
+  <script src="script.js"></script>
 </body>
 </html>
