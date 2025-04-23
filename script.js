@@ -1,131 +1,132 @@
-
-const supabase = window.supabaseClient;
+const select = document.getElementById('disciplineSelect');
+const formContainer = document.getElementById('formContainer');
+const resultsContainer = document.getElementById('resultsContainer');
 
 async function loadDisciplines() {
-  const { data, error } = await supabase
-    .from('discipliny')
-    .select('*')
-    .order('nazev');
+    const { data, error } = await window.supabaseClient
+        .from('discipliny')
+        .select('*')
+        .order('nazev');
 
-  const select = document.getElementById('disciplineSelect');
-  if (error) {
-    console.error("Chyba při načítání disciplín:", error);
-    return;
-  }
+    if (error) {
+        console.error("Chyba načítání disciplín:", error);
+        return;
+    }
 
-  data.forEach(d => {
-    const option = document.createElement('option');
-    option.value = JSON.stringify(d);
-    option.textContent = `${d.nazev} – ${d.kategorie} – ${d.pohlavi}`;
-    select.appendChild(option);
-  });
+    data.forEach(d => {
+        const option = document.createElement('option');
+        option.value = JSON.stringify(d);
+        option.textContent = `${d.nazev} – ${d.kategorie} – ${d.pohlavi}`;
+        select.appendChild(option);
+    });
 
-  select.addEventListener('change', showForm);
+    select.addEventListener('change', showForm);
 }
 
 function showForm() {
-  const discipline = JSON.parse(document.getElementById('disciplineSelect').value);
-  const isTrack = discipline.typ === 'beh';
-  const form = document.createElement('form');
+    const discipline = JSON.parse(select.value);
+    const isTrack = discipline.typ === 'beh';
 
-  form.innerHTML = `
-    <h3>Zadání výsledků</h3>
-    <input type="text" placeholder="Příjmení" id="surname">
-    <input type="text" placeholder="Jméno" id="name">
-    ${isTrack ? `
-      <input type="number" step="0.01" placeholder="Čas (s)" id="time">
-    ` : `
-      <input type="number" step="0.01" placeholder="Pokus 1" id="p1">
-      <input type="number" step="0.01" placeholder="Pokus 2" id="p2">
-      <input type="number" step="0.01" placeholder="Pokus 3" id="p3">
-    `}
-    <button type="submit">Uložit</button>
-    <p id="saveStatus"></p>
-  `;
+    const form = document.createElement('form');
+    form.innerHTML = `
+        <h3>Zadání výsledků</h3>
+        <input type="text" id="surname" placeholder="Příjmení">
+        <input type="text" id="name" placeholder="Jméno">
+        ${isTrack
+            ? `<input type="number" id="time" placeholder="Výkon (čas v s)">`
+            : `<input type="number" id="p1" placeholder="Pokus 1 (m)">
+               <input type="number" id="p2" placeholder="Pokus 2 (m)">
+               <input type="number" id="p3" placeholder="Pokus 3 (m)">`
+        }
+        <button type="submit">Uložit</button>
+        <p id="saveStatus" style="color: green;"></p>
+    `;
 
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    const prijmeni = document.getElementById('surname').value;
-    const jmeno = document.getElementById('name').value;
-    let vykon = null;
-    let pokusy = [];
+    form.onsubmit = async function (e) {
+        e.preventDefault();
+        const prijmeni = document.getElementById('surname').value;
+        const jmeno = document.getElementById('name').value;
 
-    if (isTrack) {
-      vykon = parseFloat(document.getElementById('time').value);
-    } else {
-      pokusy = [
-        parseFloat(document.getElementById('p1').value),
-        parseFloat(document.getElementById('p2').value),
-        parseFloat(document.getElementById('p3').value)
-      ];
-      vykon = Math.max(...pokusy.filter(x => !isNaN(x)));
-    }
+        let vykon = null;
+        let pokusy = [null, null, null];
 
-    const { error } = await supabase.from('vysledky').insert([{
-      id_disciplina: discipline.id,
-      prijmeni,
-      jmeno,
-      vykon,
-      pokus1: pokusy[0] || null,
-      pokus2: pokusy[1] || null,
-      pokus3: pokusy[2] || null
-    }]);
+        if (isTrack) {
+            vykon = parseFloat(document.getElementById('time').value);
+        } else {
+            pokusy = [
+                parseFloat(document.getElementById('p1').value),
+                parseFloat(document.getElementById('p2').value),
+                parseFloat(document.getElementById('p3').value)
+            ];
+            vykon = Math.max(...pokusy.filter(x => !isNaN(x)));
+        }
 
-    const status = document.getElementById('saveStatus');
-    if (error) {
-      status.textContent = 'Chyba při ukládání!';
-      status.style.color = 'red';
-    } else {
-      status.textContent = 'Výsledek uložen.';
-      status.style.color = 'green';
-      form.reset();
-    }
+        const { error } = await window.supabaseClient.from('vysledky').insert([{
+            id_disciplina: discipline.id,
+            prijmeni,
+            jmeno,
+            vykon,
+            pokus1: pokusy[0],
+            pokus2: pokusy[1],
+            pokus3: pokusy[2]
+        }]);
 
-    showResults(discipline.id, isTrack);
-  };
+        const status = document.getElementById('saveStatus');
+        if (!error) {
+            status.textContent = 'Výsledek uložen.';
+            form.reset();
+            showResults(discipline); // Zobrazí tabulku s výsledky
+        } else {
+            status.style.color = 'red';
+            status.textContent = 'Chyba při ukládání!';
+            console.error(error);
+        }
+    };
 
-  const container = document.getElementById('formContainer');
-  container.innerHTML = '';
-  container.appendChild(form);
-
-  showResults(discipline.id, isTrack);
+    formContainer.innerHTML = '';
+    formContainer.appendChild(form);
+    showResults(discipline);
 }
 
-async function showResults(disciplinaId, isTrack) {
-  const { data, error } = await supabase
-    .from('vysledky')
-    .select('*')
-    .eq('id_disciplina', disciplinaId)
-    .order('vykon', { ascending: isTrack });
+async function showResults(discipline) {
+    const isTrack = discipline.typ === 'beh';
 
-  const container = document.getElementById('resultsContainer');
-  if (error) {
-    console.error('Chyba při načítání výsledků:', error);
-    container.innerHTML = '<p>Chyba při načítání výsledků.</p>';
-    return;
-  }
+    const { data, error } = await window.supabaseClient
+        .from('vysledky')
+        .select('prijmeni, jmeno, vykon, pokus1, pokus2, pokus3')
+        .eq('id_disciplina', discipline.id)
+        .order('vykon', { ascending: isTrack });
 
-  if (!data || data.length === 0) {
-    container.innerHTML = '<p>Žádné výsledky.</p>';
-    return;
-  }
-
-  let html = '<h3>Výsledky</h3><table border="1"><tr><th>Jméno</th><th>Příjmení</th>';
-  html += isTrack ? '<th>Čas (s)</th>' : '<th>Pokus 1</th><th>Pokus 2</th><th>Pokus 3</th><th>Nejlepší</th>';
-  html += '</tr>';
-
-  data.forEach(d => {
-    html += `<tr><td>${d.jmeno}</td><td>${d.prijmeni}</td>`;
-    if (isTrack) {
-      html += `<td>${d.vykon ?? '-'}</td>`;
-    } else {
-      html += `<td>${d.pokus1 ?? '-'}</td><td>${d.pokus2 ?? '-'}</td><td>${d.pokus3 ?? '-'}</td><td>${d.vykon ?? '-'}</td>`;
+    if (error) {
+        console.error("Chyba načítání výsledků:", error);
+        return;
     }
-    html += '</tr>';
-  });
 
-  html += '</table>';
-  container.innerHTML = html;
+    const table = document.createElement('table');
+    table.innerHTML = `
+        <thead>
+            <tr><th>Jméno</th><th>Příjmení</th><th>Výkon</th>
+            ${!isTrack ? '<th>P1</th><th>P2</th><th>P3</th>' : ''}
+            </tr>
+        </thead>
+        <tbody>
+            ${data.map(v => `
+                <tr>
+                    <td>${v.jmeno}</td>
+                    <td>${v.prijmeni}</td>
+                    <td>${v.vykon}</td>
+                    ${!isTrack ? `
+                        <td>${v.pokus1 || ''}</td>
+                        <td>${v.pokus2 || ''}</td>
+                        <td>${v.pokus3 || ''}</td>
+                    ` : ''}
+                </tr>
+            `).join('')}
+        </tbody>
+    `;
+
+    resultsContainer.innerHTML = '';
+    resultsContainer.appendChild(table);
 }
 
 loadDisciplines();
