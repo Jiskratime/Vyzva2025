@@ -5,28 +5,11 @@
   <title>JISKRAtime – Atletika 2025</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
   <script>
-    const SUPABASE_URL = 'https://lmcmwrehrmgygsnyofdf.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtY213cmVocm1neWdzbnlvZmRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyNjMzNzIsImV4cCI6MjA2MDgzOTM3Mn0.oJ7rRKOg2FAurmZanqvanyu4k0gnEXQfKawayZHeSBQ';
-
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    window.supabaseClient = supabase;
-
-    document.addEventListener('DOMContentLoaded', async () => {
-      try {
-        const { data, error } = await window.supabaseClient
-          .from('discipliny')
-          .select('*')
-          .order('nazev');
-
-        if (error) {
-          console.error("Chyba při načítání disciplín:", error);
-        } else {
-          console.log("Načtené disciplíny:", data);
-          // Můžeš doplnit zobrazení ve <select> podle potřeby
-        }
-      } catch (err) {
-        console.error("Neočekávaná chyba:", err);
-      }
+    document.addEventListener('DOMContentLoaded', () => {
+      const SUPABASE_URL = 'https://lmcmwrehrmgygsnyofdf.supabase.co';
+      const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtY213cmVocm1neWdzbnlvZmRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyNjMzNzIsImV4cCI6MjA2MDgzOTM3Mn0.oJ7rRKOg2FAurmZanqvanyu4k0gnEXQfKawayZHeSBQ';
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      window.supabaseClient = supabase;
     });
   </script>
   <link rel="stylesheet" href="style.css">
