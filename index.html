@@ -5,7 +5,25 @@
   <title>JISKRAtime – Atletika 2025</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
   <script>
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async () => {
+  if (!window.supabaseClient) {
+    console.error("Supabase client není inicializovaný.");
+    return;
+  }
+
+  const { data, error } = await window.supabaseClient
+    .from('discipliny')
+    .select('*')
+    .order('nazev');
+
+  if (error) {
+    console.error("Chyba při načítání disciplín:", error);
+  } else {
+    console.log("Načtené disciplíny:", data);
+    // doplnit do <select>
+  }
+});
+
       const SUPABASE_URL = 'https://lmcmwrehrmgygsnyofdf.supabase.co';
       const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtY213cmVocm1neWdzbnlvZmRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyNjMzNzIsImV4cCI6MjA2MDgzOTM3Mn0.oJ7rRKOg2FAurmZanqvanyu4k0gnEXQfKawayZHeSBQ';
       const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
