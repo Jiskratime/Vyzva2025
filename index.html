@@ -1,9 +1,20 @@
+
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>JISKRAtime – Atletika 2025</title>
-  <link rel="stylesheet" href="style.css" />
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    window.supabaseClient = supabase;
+
+    import './script.js';
+  </script>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <h1>JISKRAtime – Zápis výsledků</h1>
@@ -11,6 +22,5 @@
   <select id="disciplineSelect"></select>
   <div id="formContainer" style="margin-top:20px;"></div>
   <div id="resultsContainer" style="margin-top:30px;"></div>
-  <script type="module" src="script.js"></script>
 </body>
 </html>
