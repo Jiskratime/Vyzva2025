@@ -10,6 +10,7 @@ const formContainer = document.getElementById('formContainer');
 const resultsContainer = document.getElementById('resultsContainer');
 
 async function loadDisciplines() {
+  console.log("Spuštěna funkce loadDisciplines");
   const { data, error } = await supabase
     .from('discipliny')
     .select('*')
