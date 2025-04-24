@@ -4,16 +4,9 @@
 <head>
   <meta charset="UTF-8">
   <title>JISKRAtime – Atletika 2025</title>
-  <script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    window.supabaseClient = supabase;
-
-    import './script.js';
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="config.js"></script>
+  <script src="script.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
