@@ -81,10 +81,56 @@ function showForm() {
     } else {
       alert("Výsledek uložen.");
       form.reset();
+      await showResultsTable(discipline);
     }
   };
 
   formContainer.appendChild(form);
+}
+async function showResultsTable(discipline) {
+  const tableContainer = document.getElementById('resultsTableContainer');
+  tableContainer.innerHTML = '';
+
+  const { data, error } = await supabase
+    .from('vysledky')
+    .select('*')
+    .eq('disciplina_id', discipline.id)
+    .order(discipline.typ === 'beh' ? 'cas' : 'nejlepsi', { ascending: discipline.typ === 'beh' });
+
+  if (error) {
+    console.error('Chyba při načítání výsledků:', error);
+    tableContainer.innerHTML = '<p style="color:red;">Chyba při načítání výsledků.</p>';
+    return;
+  }
+
+  if (!data || data.length === 0) {
+    tableContainer.innerHTML = '<p>Žádné výsledky zatím nejsou.</p>';
+    return;
+  }
+
+  const table = document.createElement('table');
+  table.classList.add('results-table');
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Pořadí</th>
+        <th>Příjmení</th>
+        <th>Jméno</th>
+        ${discipline.typ === 'beh' ? '<th>Čas (s)</th>' : '<th>Nejlepší výkon (m)</th>'}
+      </tr>
+    </thead>
+    <tbody>
+      ${data.map((row, index) => `
+        <tr style="background-color: ${index === 0 ? '#ffffcc' : index === 1 ? '#dddddd' : index === 2 ? '#f0e68c' : 'transparent'}; font-weight: ${index < 3 ? 'bold' : 'normal'};">
+          <td>${index + 1}</td>
+          <td>${row.prijmeni}</td>
+          <td>${row.jmeno}</td>
+          <td>${discipline.typ === 'beh' ? row.cas : row.nejlepsi}</td>
+        </tr>`).join('')}
+    </tbody>
+  `;
+
+  tableContainer.appendChild(table);
 }
 
 loadDisciplines();
