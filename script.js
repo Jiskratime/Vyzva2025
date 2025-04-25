@@ -12,8 +12,7 @@ async function showResultsTable(discipline) {
       jmeno,
       prijmeni
     )
-  `);
-
+  `)
     .eq('disciplina_id', discipline.id)
     .order(isTrack ? 'cas' : 'nejlepsi', { ascending: isTrack });
 
