@@ -23,7 +23,7 @@ async function showResultsTable(discipline) {
   }
 
   const table = document.createElement('table');
-  table.innerHTML = \`
+  table.innerHTML = `
     <thead>
       <tr>
         <th>Pořadí</th>
