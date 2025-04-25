@@ -57,7 +57,12 @@ function showForm() {
 
     const { data: zavodnik, error: zavodnikError } = await supabase
       .from('zavodnici')
-      .insert([{ jmeno, prijmeni, kategorie: discipline.kategorie, pohlavi: discipline.pohlavi }])
+      .insert([{
+        jmeno,
+        prijmeni,
+        kategorie: selectedDiscipline.kategorie,
+        pohlavi: selectedDiscipline.pohlavi
+      }])
       .select()
       .single();
 
@@ -71,7 +76,10 @@ function showForm() {
       .insert([{
         disciplina_id: selectedDiscipline.id,
         zavodnik_id: zavodnik.id,
-        pokus_1, pokus_2, pokus_3, cas
+        pokus_1,
+        pokus_2,
+        pokus_3,
+        cas
       }]);
 
     if (vysledekError) {
