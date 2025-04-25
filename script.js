@@ -19,15 +19,97 @@ async function loadDisciplines() {
 
   select.addEventListener('change', () => {
     const selected = JSON.parse(select.value);
+    showForm(selected);
     showResultsTable(selected);
   });
 
-  // Načíst rovnou první
   if (data.length > 0) {
     select.selectedIndex = 0;
     const selected = data[0];
+    showForm(selected);
     showResultsTable(selected);
   }
+}
+
+function showForm(disciplina) {
+  const container = document.getElementById('formContainer');
+  const isTrack = disciplina.typ === 'beh';
+
+  container.innerHTML = `
+    <input id="prijmeniInput" placeholder="Příjmení">
+    <input id="jmenoInput" placeholder="Jméno">
+    ${isTrack ? `
+      <input id="casInput" placeholder="Čas">
+    ` : `
+      <input id="pokus1" placeholder="Pokus 1">
+      <input id="pokus2" placeholder="Pokus 2">
+      <input id="pokus3" placeholder="Pokus 3">
+    `}
+    <button id="saveBtn">Uložit</button>
+    <div id="error" style="color:red;margin-top:5px;"></div>
+  `;
+
+  document.getElementById('saveBtn').onclick = async () => {
+    const prijmeni = document.getElementById('prijmeniInput').value.trim();
+    const jmeno = document.getElementById('jmenoInput').value.trim();
+    const errorDiv = document.getElementById('error');
+
+    if (!prijmeni || !jmeno) {
+      errorDiv.textContent = 'Zadejte jméno i příjmení';
+      return;
+    }
+
+    const { data: zavodnik, error: zavodnikErr } = await client
+      .from('zavodnici')
+      .insert([{ jmeno, prijmeni, kategorie: disciplina.kategorie, pohlavi: disciplina.pohlavi }])
+      .select()
+      .single();
+
+    if (zavodnikErr || !zavodnik) {
+      errorDiv.textContent = 'Chyba při ukládání závodníka';
+      return;
+    }
+
+    let vysledkyData = {
+      disciplina_id: disciplina.id,
+      zavodnik_id: zavodnik.id,
+    };
+
+    if (isTrack) {
+      const cas = parseFloat(document.getElementById('casInput').value);
+      if (!cas) {
+        errorDiv.textContent = 'Zadejte čas';
+        return;
+      }
+      vysledkyData.cas = cas;
+    } else {
+      const p1 = parseFloat(document.getElementById('pokus1').value);
+      const p2 = parseFloat(document.getElementById('pokus2').value);
+      const p3 = parseFloat(document.getElementById('pokus3').value);
+      const pokusy = [p1, p2, p3].filter(v => !isNaN(v));
+      if (pokusy.length === 0) {
+        errorDiv.textContent = 'Zadejte alespoň jeden pokus';
+        return;
+      }
+      vysledkyData.pokus_1 = p1 || null;
+      vysledkyData.pokus_2 = p2 || null;
+      vysledkyData.pokus_3 = p3 || null;
+      vysledkyData.nejlepsi = Math.max(...pokusy);
+    }
+
+    const { error: vysledkyErr } = await client
+      .from('vysledky')
+      .insert([vysledkyData]);
+
+    if (vysledkyErr) {
+      errorDiv.textContent = 'Chyba při ukládání výsledku';
+      return;
+    }
+
+    errorDiv.style.color = 'green';
+    errorDiv.textContent = 'Výsledek uložen.';
+    showResultsTable(disciplina);
+  };
 }
 
 async function showResultsTable(disciplina) {
