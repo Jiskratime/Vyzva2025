@@ -6,7 +6,7 @@ const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 async function loadDisciplines() {
   const { data, error } = await supabase.from('discipliny').select('*');
   if (error) {
-    console.error("Chyba při načítání disciplín:", error);
+    console.error("Chyba při načítání disciplíny:", error);
     return;
   }
 
