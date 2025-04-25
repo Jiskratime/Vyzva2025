@@ -14,7 +14,7 @@ async function showResultsTable(discipline) {
     )
   `)
     .eq('disciplina_id', discipline.id)
-    .order(isTrack ? 'cas' : 'nejlepsi', { ascending: isTrack });
+    .order(isTrack ? 'cas' : 'nejlepsi', { ascending: isTrack })
 
   const container = document.getElementById('resultsContainer');
   if (!data || data.length === 0) {
