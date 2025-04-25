@@ -1,75 +1,82 @@
+const client = window.supabaseClient;
+
+const select = document.getElementById('disciplineSelect');
+const formContainer = document.getElementById('formContainer');
+const resultsContainer = document.getElementById('resultsContainer');
+
 async function loadDisciplines() {
-    const client = window.supabaseClient;
-    const { data, error } = await client.from('discipliny').select('*').order('nazev');
-    const select = document.getElementById('disciplineSelect');
-    if (data) {
-        data.forEach(d => {
-            const option = document.createElement('option');
-            option.value = JSON.stringify(d);
-            option.textContent = `${d.nazev} – ${d.kategorie} – ${d.pohlavi}`;
-            select.appendChild(option);
-        });
-        select.addEventListener('change', showForm);
-    } else {
-        console.error("Chyba načítání disciplín:", error);
-    }
+  console.log("Spuštěna funkce loadDisciplines");
+  const { data, error } = await client.from('discipliny').select('*').order('nazev');
+
+  if (error) {
+    console.error("Chyba při načítání disciplín:", error);
+    return;
+  }
+
+  data.forEach(d => {
+    const option = document.createElement('option');
+    option.value = JSON.stringify(d); // celý objekt, kvůli id
+    option.textContent = `${d.nazev} | ${d.kategorie} | ${d.pohlavi}`;
+    select.appendChild(option);
+  });
 }
 
+select.addEventListener('change', showForm);
+
 function showForm() {
-    const discipline = JSON.parse(document.getElementById('disciplineSelect').value);
-    const isTrack = discipline.typ === 'beh';
-    const form = document.createElement('form');
-    form.innerHTML = `
-        <h3>Zadání výsledků</h3>
-        <input type="text" placeholder="Příjmení" id="surname">
-        <input type="text" placeholder="Jméno" id="name">
-        ${isTrack
-            ? `<input type="text" placeholder="Výkon (čas v s)" id="time">`
-            : `<input type="text" placeholder="Pokus 1 (m)" id="p1">
-               <input type="text" placeholder="Pokus 2 (m)" id="p2">
-               <input type="text" placeholder="Pokus 3 (m)" id="p3">`
-        }
-        <button type="submit">Uložit</button>
-        <p id="saveStatus" style="color: green;"></p>
-    `;
-    form.onsubmit = async function(e) {
-        e.preventDefault();
-        const prijmeni = document.getElementById('surname').value;
-        const jmeno = document.getElementById('name').value;
-        let vykon = null;
-        let pokusy = [];
+  const disciplina = JSON.parse(select.value);
+  formContainer.innerHTML = `
+    <form id="vysledkyForm">
+      <input type="text" name="jmeno" placeholder="Jméno" required>
+      <input type="text" name="prijmeni" placeholder="Příjmení" required>
+      <input type="number" name="pokus_1" placeholder="Pokus 1" step="any">
+      <input type="number" name="pokus_2" placeholder="Pokus 2" step="any">
+      <input type="number" name="pokus_3" placeholder="Pokus 3" step="any">
+      <input type="number" name="cas" placeholder="Čas (pro běhy)" step="any">
+      <button type="submit">Uložit</button>
+    </form>
+  `;
 
-        if (isTrack) {
-            vykon = parseFloat(document.getElementById('time').value);
-        } else {
-            pokusy = [parseFloat(p1.value), parseFloat(p2.value), parseFloat(p3.value)];
-            vykon = Math.max(...pokusy.filter(x => !isNaN(x)));
-        }
-
-        const { error } = await window.supabaseClient.from('vysledky').insert([{
-            id_disciplina: discipline.id,
-            prijmeni,
-            jmeno,
-            vykon,
-            pokus1: pokusy[0] || null,
-            pokus2: pokusy[1] || null,
-            pokus3: pokusy[2] || null
-        }]);
-
-        const status = document.getElementById('saveStatus');
-        if (!error) {
-            status.textContent = 'Výsledek uložen.';
-            form.reset();
-        } else {
-            status.style.color = 'red';
-            status.textContent = 'Chyba při ukládání!';
-            console.error(error);
-        }
+  document.getElementById('vysledkyForm').onsubmit = async function (e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const zavodnik = {
+      jmeno: formData.get('jmeno'),
+      prijmeni: formData.get('prijmeni')
     };
 
-    const container = document.getElementById('formContainer');
-    container.innerHTML = '';
-    container.appendChild(form);
+    const { data: zavodnikData, error: zavodnikError } = await client
+      .from('zavodnici')
+      .insert([zavodnik])
+      .select();
+
+    if (zavodnikError) {
+      console.error(zavodnikError);
+      return;
+    }
+
+    const id_zavodnik = zavodnikData[0].id;
+
+    const pokusy = {
+      pokus_1: Number(formData.get('pokus_1')),
+      pokus_2: Number(formData.get('pokus_2')),
+      pokus_3: Number(formData.get('pokus_3')),
+      cas: Number(formData.get('cas')),
+    };
+
+    const vysledek = {
+      zavodnik_id: id_zavodnik,
+      disciplina_id: disciplina.id,
+      ...pokusy
+    };
+
+    const { error: vysledkyError } = await client.from('vysledky').insert([vysledek]);
+    if (vysledkyError) {
+      console.error(vysledkyError);
+    } else {
+      alert('Výsledek uložen.');
+    }
+  };
 }
 
 loadDisciplines();
