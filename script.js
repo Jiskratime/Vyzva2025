@@ -57,7 +57,7 @@ function showForm() {
 
     const { data: zavodnik, error: zavodnikError } = await supabase
       .from('zavodnici')
-      .insert([{ jmeno, prijmeni, pohlavi: selectedDiscipline.pohlavi }])
+      .insert([{ jmeno, prijmeni, kategorie: discipline.kategorie, pohlavi: discipline.pohlavi }])
       .select()
       .single();
 
