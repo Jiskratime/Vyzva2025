@@ -1,5 +1,3 @@
-
-
 const client = window.supabaseClient;
 async function loadDisciplines() {
   const { data, error } = await supabase.from('discipliny').select('*');
