@@ -3,16 +3,17 @@ async function showResultsTable(discipline) {
   const isTrack = discipline.typ === 'beh';
 
   const { data, error } = await supabase
-    .from('vysledky')
-    .select(\`
-      id,
-      cas,
-      nejlepsi,
-      zavodnik: zavodnik_id (
-        jmeno,
-        prijmeni
-      )
-    \`)
+  .from('vysledky')
+  .select(`
+    id,
+    cas,
+    nejlepsi,
+    zavodnik: zavodnik_id (
+      jmeno,
+      prijmeni
+    )
+  `);
+
     .eq('disciplina_id', discipline.id)
     .order(isTrack ? 'cas' : 'nejlepsi', { ascending: isTrack });
 
