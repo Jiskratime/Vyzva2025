@@ -1,117 +1,82 @@
 const client = window.supabaseClient;
+
 async function loadDisciplines() {
-  const { data, error } = await supabase.from('discipliny').select('*');
+  const { data, error } = await client.from('discipliny').select('*');
+
   if (error) {
-    console.error("Chyba při načítání disciplíny:", error);
+    console.error("Chyba při načítání disciplín:", error);
     return;
   }
 
   const select = document.getElementById('disciplineSelect');
-  data.forEach((discipline) => {
+  select.innerHTML = '';
+  data.forEach(d => {
     const option = document.createElement('option');
-    option.value = JSON.stringify(discipline);
-    option.textContent = `${discipline.nazev} – ${discipline.kategorie} – ${discipline.pohlavi}`;
+    option.value = JSON.stringify(d);
+    option.textContent = `${d.nazev} | ${d.kategorie} | ${d.pohlavi}`;
     select.appendChild(option);
   });
 
   select.addEventListener('change', () => {
-    const discipline = JSON.parse(select.value);
-    showForm(discipline);
-    showResultsTable(discipline);
+    const selected = JSON.parse(select.value);
+    showResultsTable(selected);
   });
+
+  // Načíst rovnou první
+  if (data.length > 0) {
+    select.selectedIndex = 0;
+    const selected = data[0];
+    showResultsTable(selected);
+  }
 }
 
-function showForm(discipline) {
-  const container = document.getElementById('formContainer');
-  container.innerHTML = '';
+async function showResultsTable(disciplina) {
+  const isTrack = disciplina.typ === 'beh';
 
-  const form = document.createElement('form');
-  form.innerHTML = `
-    <h3>Zápis výsledku</h3>
-    <input type="text" id="jmeno" placeholder="Jméno" required>
-    <input type="text" id="prijmeni" placeholder="Příjmení" required>
-    ${discipline.typ === 'beh' ? `
-      <input type="number" id="cas" placeholder="Čas (s)" step="0.01" required>
-    ` : `
-      <input type="number" id="pokus_1" placeholder="Pokus 1 (m)" step="0.01">
-      <input type="number" id="pokus_2" placeholder="Pokus 2 (m)" step="0.01">
-      <input type="number" id="pokus_3" placeholder="Pokus 3 (m)" step="0.01">
-    `}
-    <button type="submit">Uložit</button>
-    <p id="saveStatus"></p>
-  `;
-
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    const jmeno = document.getElementById('jmeno').value;
-    const prijmeni = document.getElementById('prijmeni').value;
-
-    let data = {
-      jmeno,
-      prijmeni,
-      disciplina_id: discipline.id
-    };
-
-    if (discipline.typ === 'beh') {
-      data.cas = parseFloat(document.getElementById('cas').value);
-    } else {
-      data.pokus_1 = parseFloat(document.getElementById('pokus_1').value) || null;
-      data.pokus_2 = parseFloat(document.getElementById('pokus_2').value) || null;
-      data.pokus_3 = parseFloat(document.getElementById('pokus_3').value) || null;
-      data.nejlepsi = Math.max(data.pokus_1 || 0, data.pokus_2 || 0, data.pokus_3 || 0);
-    }
-
-    const { error } = await supabase.from('vysledky').insert([data]);
-    const status = document.getElementById('saveStatus');
-
-    if (error) {
-      status.textContent = 'Chyba při ukládání';
-      status.style.color = 'red';
-    } else {
-      status.textContent = 'Výsledek uložen';
-      status.style.color = 'green';
-      form.reset();
-      showResultsTable(discipline);
-    }
-  };
-
-  container.appendChild(form);
-}
-
-async function showResultsTable(discipline) {
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('vysledky')
-    .select('*')
-    .eq('disciplina_id', discipline.id)
-    .order(discipline.typ === 'beh' ? 'cas' : 'nejlepsi', { ascending: discipline.typ === 'beh' });
+    .select(`
+      id,
+      cas,
+      nejlepsi,
+      zavodnik: zavodnik_id (
+        jmeno,
+        prijmeni
+      )
+    `)
+    .eq('disciplina_id', disciplina.id)
+    .order(isTrack ? 'cas' : 'nejlepsi', { ascending: isTrack });
 
   const container = document.getElementById('resultsContainer');
-  container.innerHTML = '<h3>Výsledky</h3>';
 
-  if (error || !data || data.length === 0) {
-    container.innerHTML += '<p>Žádné výsledky</p>';
+  if (!data || data.length === 0) {
+    container.innerHTML = '<p>Žádné výsledky zatím nejsou k dispozici.</p>';
     return;
   }
 
   const table = document.createElement('table');
   table.innerHTML = `
-    <tr><th>Jméno</th><th>Příjmení</th><th>${discipline.typ === 'beh' ? 'Čas (s)' : 'Nejlepší (m)'}</th></tr>
+    <thead>
+      <tr>
+        <th>Pořadí</th>
+        <th>Příjmení</th>
+        <th>Jméno</th>
+        <th>${isTrack ? 'Čas (s)' : 'Výkon (m)'}</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${data.map((row, index) => `
+        <tr style="background-color: ${index === 0 ? '#ffffcc' : index === 1 ? '#dddddd' : index === 2 ? '#ccff99' : ''}">
+          <td>${index + 1}</td>
+          <td>${row.zavodnik?.prijmeni ?? ''}</td>
+          <td>${row.zavodnik?.jmeno ?? ''}</td>
+          <td>${isTrack ? row.cas : row.nejlepsi}</td>
+        </tr>
+      `).join('')}
+    </tbody>
   `;
 
-  data.forEach((row, index) => {
-    const tr = document.createElement('tr');
-    if (index === 0) tr.style.background = '#fffacd';
-    else if (index === 1) tr.style.background = '#d3d3d3';
-    else if (index === 2) tr.style.background = '#f0e68c';
-
-    tr.innerHTML = `
-      <td>${row.jmeno}</td>
-      <td>${row.prijmeni}</td>
-      <td>${discipline.typ === 'beh' ? row.cas : row.nejlepsi}</td>
-    `;
-    table.appendChild(tr);
-  });
-
+  container.innerHTML = '';
   container.appendChild(table);
 }
 
