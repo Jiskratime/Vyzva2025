@@ -1,11 +1,14 @@
+
 const client = window.supabaseClient;
+
 const select = document.getElementById('disciplineSelect');
 const formContainer = document.getElementById('formContainer');
 const resultsContainer = document.getElementById('resultsContainer');
 
 async function loadDisciplines() {
   console.log("Spuštěna funkce loadDisciplines");
-  const { data, error } = await supabase
+
+  const { data, error } = await client
     .from('discipliny')
     .select('*')
     .order('nazev');
@@ -17,8 +20,8 @@ async function loadDisciplines() {
 
   data.forEach(d => {
     const option = document.createElement('option');
-    option.value = JSON.stringify(d); // uložíme celý objekt
-    option.textContent = `${d.nazev} | ${d.kategorie} | ${d.pohlavi}`;
+    option.value = JSON.stringify(d);
+    option.textContent = `${d.nazev} – ${d.kategorie} – ${d.pohlavi}`;
     select.appendChild(option);
   });
 
@@ -27,49 +30,42 @@ async function loadDisciplines() {
 
 function showForm() {
   const discipline = JSON.parse(select.value);
-  formContainer.innerHTML = ''; // pro jistotu vyčistit
-
   const isTrack = discipline.typ === 'beh';
 
   const form = document.createElement('form');
   form.innerHTML = `
-    <h3>Zápis výsledku</h3>
-    <input type="text" id="surname" placeholder="Příjmení">
-    <input type="text" id="name" placeholder="Jméno">
-    ${
-      isTrack
-        ? `<input type="text" id="time" placeholder="Výkon (v s)">`
-        : `
-      <input type="text" id="p1" placeholder="Pokus 1 (m)">
-      <input type="text" id="p2" placeholder="Pokus 2 (m)">
-      <input type="text" id="p3" placeholder="Pokus 3 (m)">`
-    }
+    <h3>Zadání výsledků</h3>
+    <input type="text" placeholder="Příjmení" id="surname">
+    <input type="text" placeholder="Jméno" id="name">
+    ${isTrack ? `<input type="text" placeholder="Výkon (čas v s)" id="time">` : `
+      <input type="text" placeholder="Pokus 1 (m)" id="p1">
+      <input type="text" placeholder="Pokus 2 (m)" id="p2">
+      <input type="text" placeholder="Pokus 3 (m)" id="p3">
+    `}
     <button type="submit">Uložit</button>
-    <p id="saveStatus"></p>
+    <p id="saveStatus" style="color: green;"></p>
   `;
 
-  form.onsubmit = async function (e) {
+  form.onsubmit = async function(e) {
     e.preventDefault();
-
     const prijmeni = document.getElementById('surname').value;
     const jmeno = document.getElementById('name').value;
-    const status = document.getElementById('saveStatus');
-
-    let vykon = null, pokusy = [];
+    let vykon = null;
+    let pokusy = [];
 
     if (isTrack) {
       vykon = parseFloat(document.getElementById('time').value);
     } else {
       pokusy = [
-        parseFloat(document.getElementById('p1').value),
-        parseFloat(document.getElementById('p2').value),
-        parseFloat(document.getElementById('p3').value)
+        parseFloat(p1.value),
+        parseFloat(p2.value),
+        parseFloat(p3.value)
       ];
       vykon = Math.max(...pokusy.filter(x => !isNaN(x)));
     }
 
-    const { error } = await supabase.from('vysledky').insert([{
-      id_disciplina: discipline.id,
+    const { error } = await client.from('vysledky').insert([{
+      discipliny_id: discipline.id,
       prijmeni,
       jmeno,
       vykon,
@@ -78,17 +74,18 @@ function showForm() {
       pokus3: pokusy[2] || null
     }]);
 
-    if (error) {
-      status.textContent = 'Chyba při ukládání!';
-      status.style.color = 'red';
-      console.error(error);
-    } else {
+    const status = document.getElementById('saveStatus');
+    if (!error) {
       status.textContent = 'Výsledek uložen.';
-      status.style.color = 'green';
       form.reset();
+    } else {
+      status.style.color = 'red';
+      status.textContent = 'Chyba při ukládání!';
+      console.error(error);
     }
   };
 
+  formContainer.innerHTML = '';
   formContainer.appendChild(form);
 }
 
