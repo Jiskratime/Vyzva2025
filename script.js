@@ -1,8 +1,6 @@
 
-const supabaseUrl = 'https://lmcmwrehrmgygsnyofdf.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxtY213cmVocm1neWdzbnlvZmRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDUyNjMzNzIsImV4cCI6MjA2MDgzOTM3Mn0.oJ7rRKOg2FAurmZanqvanyu4k0gnEXQfKawayZHeSBQ';
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
+const client = window.supabaseClient;
 async function loadDisciplines() {
   const { data, error } = await supabase.from('discipliny').select('*');
   if (error) {
