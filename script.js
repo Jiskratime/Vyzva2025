@@ -1,12 +1,14 @@
-const client = window.supabaseClient;
-
 const select = document.getElementById('disciplineSelect');
 const formContainer = document.getElementById('formContainer');
 const resultsContainer = document.getElementById('resultsContainer');
 
+let selectedDiscipline = null;
+
 async function loadDisciplines() {
-  console.log("Spuštěna funkce loadDisciplines");
-  const { data, error } = await client.from('discipliny').select('*').order('nazev');
+  const { data, error } = await supabase
+    .from('discipliny')
+    .select('*')
+    .order('nazev');
 
   if (error) {
     console.error("Chyba při načítání disciplín:", error);
@@ -15,68 +17,72 @@ async function loadDisciplines() {
 
   data.forEach(d => {
     const option = document.createElement('option');
-    option.value = JSON.stringify(d); // celý objekt, kvůli id
+    option.value = JSON.stringify(d);
     option.textContent = `${d.nazev} | ${d.kategorie} | ${d.pohlavi}`;
     select.appendChild(option);
   });
 }
 
-select.addEventListener('change', showForm);
+select.addEventListener('change', () => {
+  selectedDiscipline = JSON.parse(select.value);
+  showForm();
+});
 
 function showForm() {
-  const disciplina = JSON.parse(select.value);
-  formContainer.innerHTML = `
-    <form id="vysledkyForm">
-      <input type="text" name="jmeno" placeholder="Jméno" required>
-      <input type="text" name="prijmeni" placeholder="Příjmení" required>
-      <input type="number" name="pokus_1" placeholder="Pokus 1" step="any">
-      <input type="number" name="pokus_2" placeholder="Pokus 2" step="any">
-      <input type="number" name="pokus_3" placeholder="Pokus 3" step="any">
-      <input type="number" name="cas" placeholder="Čas (pro běhy)" step="any">
-      <button type="submit">Uložit</button>
-    </form>
+  formContainer.innerHTML = '';
+  const form = document.createElement('form');
+  form.innerHTML = `
+    <input name="prijmeni" placeholder="Příjmení" required><br>
+    <input name="jmeno" placeholder="Jméno" required><br>
+    ${selectedDiscipline.typ === 'technika' ? `
+      <input name="pokus_1" placeholder="Pokus 1" type="number"><br>
+      <input name="pokus_2" placeholder="Pokus 2" type="number"><br>
+      <input name="pokus_3" placeholder="Pokus 3" type="number"><br>
+    ` : ''}
+    ${selectedDiscipline.typ === 'beh' ? `
+      <input name="cas" placeholder="Čas" type="number" step="any"><br>
+    ` : ''}
+    <button type="submit">Uložit</button>
   `;
 
-  document.getElementById('vysledkyForm').onsubmit = async function (e) {
+  form.onsubmit = async (e) => {
     e.preventDefault();
-    const formData = new FormData(this);
-    const zavodnik = {
-      jmeno: formData.get('jmeno'),
-      prijmeni: formData.get('prijmeni')
-    };
+    const formData = new FormData(form);
+    const jmeno = formData.get('jmeno');
+    const prijmeni = formData.get('prijmeni');
+    const cas = formData.get('cas') || null;
+    const pokus_1 = formData.get('pokus_1') || null;
+    const pokus_2 = formData.get('pokus_2') || null;
+    const pokus_3 = formData.get('pokus_3') || null;
 
-    const { data: zavodnikData, error: zavodnikError } = await client
+    const { data: zavodnik, error: zavodnikError } = await supabase
       .from('zavodnici')
-      .insert([zavodnik])
-      .select();
+      .insert([{ jmeno, prijmeni, pohlavi: selectedDiscipline.pohlavi }])
+      .select()
+      .single();
 
     if (zavodnikError) {
-      console.error(zavodnikError);
+      console.error("Chyba při ukládání závodníka:", zavodnikError);
       return;
     }
 
-    const id_zavodnik = zavodnikData[0].id;
+    const { error: vysledekError } = await supabase
+      .from('vysledky')
+      .insert([{
+        disciplina_id: selectedDiscipline.id,
+        zavodnik_id: zavodnik.id,
+        pokus_1, pokus_2, pokus_3, cas
+      }]);
 
-    const pokusy = {
-      pokus_1: Number(formData.get('pokus_1')),
-      pokus_2: Number(formData.get('pokus_2')),
-      pokus_3: Number(formData.get('pokus_3')),
-      cas: Number(formData.get('cas')),
-    };
-
-    const vysledek = {
-      zavodnik_id: id_zavodnik,
-      disciplina_id: disciplina.id,
-      ...pokusy
-    };
-
-    const { error: vysledkyError } = await client.from('vysledky').insert([vysledek]);
-    if (vysledkyError) {
-      console.error(vysledkyError);
+    if (vysledekError) {
+      console.error("Chyba při ukládání výsledku:", vysledekError);
     } else {
-      alert('Výsledek uložen.');
+      alert("Výsledek uložen.");
+      form.reset();
     }
   };
+
+  formContainer.appendChild(form);
 }
 
 loadDisciplines();

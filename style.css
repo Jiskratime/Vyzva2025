@@ -1,12 +1,12 @@
 body {
-  font-family: sans-serif;
-  padding: 2em;
-  background-color: #f0f8ff;
+  font-family: Arial, sans-serif;
+  background-color: #eef5fc;
+  padding: 20px;
 }
 h1 {
   color: #003366;
 }
-form input, form button {
-  display: block;
-  margin: 0.5em 0;
+input, select, button {
+  margin: 5px 0;
+  padding: 5px;
 }
