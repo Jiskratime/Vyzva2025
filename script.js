@@ -54,7 +54,9 @@ function showForm() {
     const pokus_1 = formData.get('pokus_1') || null;
     const pokus_2 = formData.get('pokus_2') || null;
     const pokus_3 = formData.get('pokus_3') || null;
-
+    
+    const selectedOption = select.options[select.selectedIndex];
+    const discipline = JSON.parse(selectedOption.value);
     const { data: zavodnik, error: zavodnikError } = await supabase
       .from('zavodnici')
       .insert([{ jmeno, prijmeni, kategorie: discipline.kategorie, pohlavi: discipline.pohlavi }])
