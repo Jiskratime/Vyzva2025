@@ -161,5 +161,75 @@ async function showResultsTable(disciplina) {
   container.innerHTML = '';
   container.appendChild(table);
 }
+async function vypocitejSouhrnBodu() {
+  const { data: vysledky, error } = await supabase
+    .from('vysledky')
+    .select('zavodnik_id, jmeno, prijmeni, kategorie, pohlavi, body');
+
+  if (error) {
+    console.error('Chyba při načítání výsledků:', error);
+    return;
+  }
+
+  // Agregace bodů
+  const souhrn = {};
+
+  vysledky.forEach(v => {
+    const klic = `${v.kategorie}_${v.pohlavi}_${v.prijmeni}_${v.jmeno}`;
+    if (!souhrn[klic]) {
+      souhrn[klic] = {
+        jmeno: v.jmeno,
+        prijmeni: v.prijmeni,
+        kategorie: v.kategorie,
+        pohlavi: v.pohlavi,
+        body: 0
+      };
+    }
+    souhrn[klic].body += v.body || 0;
+  });
+
+  // Rozdělit podle kategorií
+  const kategorieMap = {};
+  Object.values(souhrn).forEach(zavodnik => {
+    const kategorieKlic = `${zavodnik.kategorie} – ${zavodnik.pohlavi}`;
+    if (!kategorieMap[kategorieKlic]) {
+      kategorieMap[kategorieKlic] = [];
+    }
+    kategorieMap[kategorieKlic].push(zavodnik);
+  });
+
+  // Vypsání do stránky
+  const container = document.getElementById('resultsContainer');
+  container.innerHTML = '';
+
+  for (const kategorie in kategorieMap) {
+    const zavodnici = kategorieMap[kategorie].sort((a, b) => b.body - a.body);
+
+    const table = document.createElement('table');
+    table.innerHTML = `
+      <caption style="font-weight:bold; margin:10px 0;">${kategorie}</caption>
+      <thead>
+        <tr><th>Pořadí</th><th>Příjmení</th><th>Jméno</th><th>Body</th></tr>
+      </thead>
+      <tbody></tbody>
+    `;
+
+    zavodnici.forEach((zav, idx) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `<td>${idx + 1}</td><td>${zav.prijmeni}</td><td>${zav.jmeno}</td><td>${zav.body}</td>`;
+
+      // Barevné zvýraznění prvních tří
+      if (idx === 0) row.style.backgroundColor = 'lightyellow';
+      if (idx === 1) row.style.backgroundColor = 'lightgrey';
+      if (idx === 2) row.style.backgroundColor = 'wheat';
+      
+      row.style.fontWeight = idx < 3 ? 'bold' : 'normal';
+
+      table.querySelector('tbody').appendChild(row);
+    });
+
+    container.appendChild(table);
+  }
+}
 
 loadDisciplines();
