@@ -161,73 +161,85 @@ async function showResultsTable(disciplina) {
   container.innerHTML = '';
   container.appendChild(table);
 }
+const buttonSouhrn = document.getElementById('souhrnButton');
+buttonSouhrn.addEventListener('click', vypocitejSouhrnBodu);
+
 async function vypocitejSouhrnBodu() {
-  const { data: vysledky, error } = await supabase
+  const { data: vysledky, error } = await client
     .from('vysledky')
-    .select('zavodnik_id, jmeno, prijmeni, kategorie, pohlavi, body');
+    .select(`
+      id,
+      body,
+      zavodnik: zavodnik_id (
+        jmeno,
+        prijmeni,
+        kategorie,
+        pohlavi
+      )
+    `);
 
   if (error) {
     console.error('Chyba při načítání výsledků:', error);
     return;
   }
 
-  // Agregace bodů
   const souhrn = {};
 
   vysledky.forEach(v => {
-    const klic = `${v.kategorie}_${v.pohlavi}_${v.prijmeni}_${v.jmeno}`;
+    if (!v.zavodnik) return;
+    const klic = `${v.zavodnik.kategorie}_${v.zavodnik.pohlavi}`;
     if (!souhrn[klic]) {
-      souhrn[klic] = {
-        jmeno: v.jmeno,
-        prijmeni: v.prijmeni,
-        kategorie: v.kategorie,
-        pohlavi: v.pohlavi,
-        body: 0
-      };
+      souhrn[klic] = [];
     }
-    souhrn[klic].body += v.body || 0;
+    const existujici = souhrn[klic].find(z => z.jmeno === v.zavodnik.jmeno && z.prijmeni === v.zavodnik.prijmeni);
+    if (existujici) {
+      existujici.body += v.body || 0;
+    } else {
+      souhrn[klic].push({
+        jmeno: v.zavodnik.jmeno,
+        prijmeni: v.zavodnik.prijmeni,
+        body: v.body || 0
+      });
+    }
   });
 
-  // Rozdělit podle kategorií
-  const kategorieMap = {};
-  Object.values(souhrn).forEach(zavodnik => {
-    const kategorieKlic = `${zavodnik.kategorie} – ${zavodnik.pohlavi}`;
-    if (!kategorieMap[kategorieKlic]) {
-      kategorieMap[kategorieKlic] = [];
-    }
-    kategorieMap[kategorieKlic].push(zavodnik);
-  });
-
-  // Vypsání do stránky
+  zobrazSouhrnPodleKategorii(souhrn);
+}
+function zobrazSouhrnPodleKategorii(souhrn) {
   const container = document.getElementById('resultsContainer');
   container.innerHTML = '';
 
-  for (const kategorie in kategorieMap) {
-    const zavodnici = kategorieMap[kategorie].sort((a, b) => b.body - a.body);
+  for (const klic in souhrn) {
+    const [kategorie, pohlavi] = klic.split('_');
+
+    const nadpis = document.createElement('h3');
+    nadpis.textContent = `${kategorie} – ${pohlavi}`;
+    container.appendChild(nadpis);
 
     const table = document.createElement('table');
     table.innerHTML = `
-      <caption style="font-weight:bold; margin:10px 0;">${kategorie}</caption>
       <thead>
-        <tr><th>Pořadí</th><th>Příjmení</th><th>Jméno</th><th>Body</th></tr>
+        <tr>
+          <th>Pořadí</th>
+          <th>Příjmení</th>
+          <th>Jméno</th>
+          <th>Body</th>
+        </tr>
       </thead>
-      <tbody></tbody>
+      <tbody>
+        ${souhrn[klic]
+          .sort((a, b) => b.body - a.body)
+          .map((zavodnik, index) => `
+            <tr>
+              <td>${index + 1}</td>
+              <td>${zavodnik.prijmeni}</td>
+              <td>${zavodnik.jmeno}</td>
+              <td>${zavodnik.body}</td>
+            </tr>
+          `)
+          .join('')}
+      </tbody>
     `;
-
-    zavodnici.forEach((zav, idx) => {
-      const row = document.createElement('tr');
-      row.innerHTML = `<td>${idx + 1}</td><td>${zav.prijmeni}</td><td>${zav.jmeno}</td><td>${zav.body}</td>`;
-
-      // Barevné zvýraznění prvních tří
-      if (idx === 0) row.style.backgroundColor = 'lightyellow';
-      if (idx === 1) row.style.backgroundColor = 'lightgrey';
-      if (idx === 2) row.style.backgroundColor = 'wheat';
-      
-      row.style.fontWeight = idx < 3 ? 'bold' : 'normal';
-
-      table.querySelector('tbody').appendChild(row);
-    });
-
     container.appendChild(table);
   }
 }
