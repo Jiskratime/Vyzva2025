@@ -1,6 +1,3 @@
-// Připojení k Supabase
-const supabase = window.supabaseClient;
-
 // Načtení disciplín do selectu
 async function loadDisciplines() {
     const { data, error } = await supabase.from('discipliny').select('*').order('nazev');
