@@ -1,196 +1,136 @@
-// Načtení disciplín do selectu
-async function loadDisciplines() {
-    const { data, error } = await supabase.from('discipliny').select('*').order('nazev');
-    const select = document.getElementById('disciplineSelect');
-    select.innerHTML = '';
 
+const client = window.supabaseClient;
+
+// Načti disciplíny
+async function loadDisciplines() {
+    const { data, error } = await client.from('discipliny').select('*').order('nazev');
     if (error) {
         console.error('Chyba při načítání disciplín:', error);
         return;
     }
-
+    const select = document.getElementById('disciplineSelect');
     data.forEach(d => {
         const option = document.createElement('option');
-        option.value = d.id;
-        option.textContent = `${d.nazev} – ${d.kategorie} – ${d.pohlavi}`;
+        option.value = JSON.stringify(d);
+        option.textContent = `${d.nazev} | ${d.kategorie} | ${d.pohlavi}`;
         select.appendChild(option);
     });
-
-    select.addEventListener('change', zobrazFormular);
 }
 
-// Zobrazení formuláře pro zápis výsledků
-function zobrazFormular() {
-    const disciplinaId = document.getElementById('disciplineSelect').value;
-    if (!disciplinaId) return;
-
-    const formContainer = document.getElementById('formContainer');
-    formContainer.innerHTML = `
-        <h3>Zadání výsledků</h3>
-        <input type="text" id="jmeno" placeholder="Jméno"><br><br>
-        <input type="text" id="prijmeni" placeholder="Příjmení"><br><br>
-        <input type="number" id="cas" placeholder="Výkon (čas v s / výkon v m)"><br><br>
-        <button onclick="ulozitVysledek()">Uložit výsledek</button>
-    `;
-
-    zobrazVysledky();
-}
-
-// Uložení výsledku do databáze
-async function ulozitVysledek() {
-    const disciplinaId = document.getElementById('disciplineSelect').value;
-    const jmeno = document.getElementById('jmeno').value.trim();
-    const prijmeni = document.getElementById('prijmeni').value.trim();
-    const cas = parseFloat(document.getElementById('cas').value);
-
-    if (!jmeno || !prijmeni || isNaN(cas)) {
-        alert('Vyplňte všechna pole správně.');
-        return;
-    }
-
-    const { error } = await supabase.from('vysledky').insert([
-        { disciplina_id: disciplinaId, jmeno, prijmeni, cas }
-    ]);
-
-    if (error) {
-        console.error('Chyba při ukládání výsledku:', error);
-        alert('Chyba při ukládání!');
-    } else {
-        alert('Výsledek uložen.');
-        zobrazVysledky();
-        document.getElementById('jmeno').value = '';
-        document.getElementById('prijmeni').value = '';
-        document.getElementById('cas').value = '';
-    }
-}
-
-// Zobrazení výsledků pro vybranou disciplínu
+// Zobraz výsledky
 async function zobrazVysledky() {
-    const disciplinaId = document.getElementById('disciplineSelect').value;
-    async function showResultsTable(discipline) {
-      const isTrack = discipline.typ === 'beh';
-          const { data, error } = await client
-        .from('vysledky')
-        .select(`
-          id,
-          cas,
-          nejlepsi,
-          zavodnik: zavodnik_id (
-            jmeno,
-            prijmeni
-          )
-        `)
+    const selected = document.getElementById('disciplineSelect').value;
+    if (!selected) return;
+    const discipline = JSON.parse(selected);
+    const isTrack = discipline.typ === 'beh';
+
+    const { data, error } = await client.from('vysledky')
+        .select(`id, cas, nejlepsi, zavodnik: zavodnik_id (jmeno, prijmeni)`)
         .eq('disciplina_id', discipline.id)
         .order(isTrack ? 'cas' : 'nejlepsi', { ascending: true });
-    
-      const container = document.getElementById('resultsContainer');
-      container.innerHTML = '';
-    
-      if (!data || data.length === 0) {
-        container.innerHTML = '<p>Žádné
-    
-    const resultsContainer = document.getElementById('resultsContainer');
-    resultsContainer.innerHTML = '';
+
+    const container = document.getElementById('resultsContainer');
+    container.innerHTML = '';
 
     if (error) {
         console.error('Chyba při načítání výsledků:', error);
         return;
     }
-
-    if (data.length === 0) {
-        resultsContainer.innerHTML = '<p>Žádné výsledky zatím nejsou.</p>';
+    if (!data || data.length === 0) {
+        container.innerHTML = '<p>Žádné výsledky.</p>';
         return;
     }
 
     const table = document.createElement('table');
     table.innerHTML = `
         <thead>
-            <tr>
-                <th>Pořadí</th>
-                <th>Jméno</th>
-                <th>Příjmení</th>
-                <th>Výkon</th>
-            </tr>
+            <tr><th>Pořadí</th><th>Jméno</th><th>Příjmení</th><th>${isTrack ? 'Čas (s)' : 'Výkon (m)'}</th></tr>
         </thead>
         <tbody>
-            ${data.sort((a, b) => a.cas - b.cas).map((v, index) => `
+            ${data.map((row, index) => `
                 <tr>
                     <td>${index + 1}</td>
-                    <td>${v.jmeno}</td>
-                    <td>${v.prijmeni}</td>
-                    <td>${v.cas}</td>
+                    <td>${row.zavodnik?.jmeno || ''}</td>
+                    <td>${row.zavodnik?.prijmeni || ''}</td>
+                    <td>${isTrack ? row.cas : row.nejlepsi}</td>
                 </tr>
             `).join('')}
         </tbody>
     `;
-
-    resultsContainer.appendChild(table);
-    pridatTlacitkaExportu();
+    container.appendChild(table);
 }
 
-// Přidání tlačítek pro export
-function pridatTlacitkaExportu() {
-    const container = document.getElementById('resultsContainer');
-    const buttonsDiv = document.createElement('div');
-    buttonsDiv.style.marginTop = '20px';
+// Výpočet souhrnného bodování
+async function vypocitejSouhrnBodu() {
+    const { data, error } = await client.from('vysledky')
+        .select('id, cas, nejlepsi, zavodnik: zavodnik_id (jmeno, prijmeni, kategorie, pohlavi), disciplina: disciplina_id (typ, kategorie, pohlavi)');
+    
+    const container = document.getElementById('resultsTableContainer');
+    container.innerHTML = '';
 
-    const pdfButton = document.createElement('button');
-    pdfButton.textContent = 'Exportovat do PDF';
-    pdfButton.onclick = exportToPDF;
-    pdfButton.style.marginRight = '10px';
-
-    const excelButton = document.createElement('button');
-    excelButton.textContent = 'Exportovat do Excelu';
-    excelButton.onclick = exportToExcel;
-
-    buttonsDiv.appendChild(pdfButton);
-    buttonsDiv.appendChild(excelButton);
-    container.appendChild(buttonsDiv);
-}
-
-// Export výsledků do PDF
-function exportToPDF() {
-    const container = document.getElementById('resultsContainer');
-    if (!container.innerHTML.trim()) {
-        alert('Nejsou k dispozici žádné výsledky k exportu.');
+    if (error) {
+        console.error('Chyba při načítání výsledků:', error);
         return;
     }
 
-    const opt = {
-        margin:       0.5,
-        filename:     'vysledky.pdf',
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2 },
-        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
-    };
+    if (!data || data.length === 0) {
+        container.innerHTML = '<p>Žádné výsledky k výpočtu.</p>';
+        return;
+    }
 
-    html2pdf().from(container).set(opt).save();
+    const body = {};
+
+    data.forEach(row => {
+        const zavodnik = row.zavodnik;
+        if (!zavodnik) return;
+        const key = `${zavodnik.prijmeni}_${zavodnik.jmeno}_${zavodnik.kategorie}_${zavodnik.pohlavi}`;
+        if (!body[key]) body[key] = { jmeno: zavodnik.jmeno, prijmeni: zavodnik.prijmeni, kategorie: zavodnik.kategorie, pohlavi: zavodnik.pohlavi, body: 0 };
+        body[key].body += 10; // Zatím pevně 10 bodů za každý záznam (pak lze upravit podle pořadí)
+    });
+
+    const bodyArray = Object.values(body).sort((a, b) => b.body - a.body);
+
+    const table = document.createElement('table');
+    table.innerHTML = `
+        <thead>
+            <tr><th>Pořadí</th><th>Jméno</th><th>Příjmení</th><th>Kategorie</th><th>Pohlaví</th><th>Body</th></tr>
+        </thead>
+        <tbody>
+            ${bodyArray.map((row, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>${row.jmeno}</td>
+                    <td>${row.prijmeni}</td>
+                    <td>${row.kategorie}</td>
+                    <td>${row.pohlavi}</td>
+                    <td>${row.body}</td>
+                </tr>
+            `).join('')}
+        </tbody>
+    `;
+    container.appendChild(table);
 }
 
-// Export výsledků do Excelu
+// Export výsledků
+function exportToPDF() {
+    const table = document.querySelector('#resultsContainer table');
+    if (!table) return alert('Žádná tabulka k exportu.');
+    const opt = { margin: 1, filename: 'vysledky.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } };
+    html2pdf().from(table).set(opt).save();
+}
+
 function exportToExcel() {
     const table = document.querySelector('#resultsContainer table');
-    if (!table) {
-        alert('Nejsou k dispozici žádné výsledky k exportu.');
-        return;
-    }
-
-    let csv = [];
-    const rows = table.querySelectorAll('tr');
-    for (const row of rows) {
-        const cols = row.querySelectorAll('td, th');
-        const rowData = [];
-        cols.forEach(col => rowData.push(col.innerText));
-        csv.push(rowData.join(','));
-    }
-
-    const csvString = csv.join('\n');
-    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'vysledky.csv';
-    link.click();
+    if (!table) return alert('Žádná tabulka k exportu.');
+    const wb = XLSX.utils.table_to_book(table, { sheet: "Výsledky" });
+    XLSX.writeFile(wb, "vysledky.xlsx");
 }
+
+// Eventy
+document.getElementById('disciplineSelect').addEventListener('change', zobrazVysledky);
+document.getElementById('vypocitatBodyButton').addEventListener('click', vypocitejSouhrnBodu);
+document.getElementById('exportPDF').addEventListener('click', exportToPDF);
+document.getElementById('exportExcel').addEventListener('click', exportToExcel);
 
 // Inicializace
 loadDisciplines();
