@@ -161,9 +161,8 @@ async function showResultsTable(disciplina) {
   container.innerHTML = '';
   container.appendChild(table);
 }
-const buttonSouhrn = document.getElementById('souhrnButton');
+const buttonSouhrn = document.getElementById('vypocitatBodyButton');
 buttonSouhrn.addEventListener('click', vypocitejSouhrnBodu);
-
 async function vypocitejSouhrnBodu() {
   const { data: vysledky, error } = await client
     .from('vysledky')
