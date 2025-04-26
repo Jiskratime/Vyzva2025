@@ -67,8 +67,28 @@ async function ulozitVysledek() {
 // Zobrazení výsledků pro vybranou disciplínu
 async function zobrazVysledky() {
     const disciplinaId = document.getElementById('disciplineSelect').value;
-    const { data, error } = await supabase.from('vysledky').select('*').eq('disciplina_id', disciplinaId);
-
+    async function showResultsTable(discipline) {
+      const isTrack = discipline.typ === 'beh';
+          const { data, error } = await client
+        .from('vysledky')
+        .select(`
+          id,
+          cas,
+          nejlepsi,
+          zavodnik: zavodnik_id (
+            jmeno,
+            prijmeni
+          )
+        `)
+        .eq('disciplina_id', discipline.id)
+        .order(isTrack ? 'cas' : 'nejlepsi', { ascending: true });
+    
+      const container = document.getElementById('resultsContainer');
+      container.innerHTML = '';
+    
+      if (!data || data.length === 0) {
+        container.innerHTML = '<p>Žádné
+    
     const resultsContainer = document.getElementById('resultsContainer');
     resultsContainer.innerHTML = '';
 
