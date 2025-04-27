@@ -5,18 +5,23 @@
   <meta charset="UTF-8">
   <title>JISKRAtime – Atletika 2025</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="style.css">
   <script src="config.js" defer></script>
-<script src="script.js" defer></script>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.3/html2pdf.bundle.min.js"></script>
+  <script src="script.js" defer></script>
 </head>
 <body>
   <h1>JISKRAtime – Zápis výsledků</h1>
   <label for="disciplineSelect">Vyber disciplínu:</label>
   <select id="disciplineSelect"></select>
-  <button id="vypocitatBodyButton" style="margin-top:20px;">Vypočítat souhrn bodů</button>
   <div id="formContainer" style="margin-top:20px;"></div>
   <div id="resultsContainer" style="margin-top:30px;"></div>
-  <div id="resultsTableContainer" style="margin-top:30px;"></div>
+  <div style="margin-top:30px;">
+    <button id="vypocitatBodyButton">Vypočítat souhrn bodů</button>
+    <button id="exportPdfButton">Exportovat do PDF</button>
+    <button id="exportExcelButton">Exportovat do Excelu</button>
+  </div>
+  <div id="summaryContainer" style="margin-top:30px;"></div>
 </body>
 </html>

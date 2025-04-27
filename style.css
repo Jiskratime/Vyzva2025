@@ -1,3 +1,4 @@
+
 body {
   font-family: Arial, sans-serif;
   background-color: #eef5fc;
@@ -9,4 +10,17 @@ h1 {
 input, select, button {
   margin: 5px 0;
   padding: 5px;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 10px;
+}
+th, td {
+  border: 1px solid #003366;
+  padding: 8px;
+  text-align: center;
+}
+th {
+  background-color: #cce0ff;
 }

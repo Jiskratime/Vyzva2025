@@ -1,10 +1,13 @@
-// Načíst disciplíny do selectu
+// Připojení k Supabase (už vytvořeno v config.js)
+const supabase = window.supabaseClient;
+
+// Načíst disciplíny
 async function loadDisciplines() {
-  const { data, error } = await supabase.from('discipliny').select('*').order('nazev');
   const select = document.getElementById('disciplineSelect');
-  select.innerHTML = ''; // Vyčistit select
+  select.innerHTML = '';
+  const { data, error } = await supabase.from('discipliny').select('*').order('nazev');
   if (error) {
-    console.error('Chyba načítání disciplín:', error);
+    alert('Chyba načítání disciplín.');
     return;
   }
   data.forEach(d => {
@@ -15,24 +18,21 @@ async function loadDisciplines() {
   });
 }
 
-// Po výběru disciplíny ukázat formulář
-document.getElementById('disciplineSelect').addEventListener('change', showForm);
-
+// Po výběru disciplíny
 async function showForm() {
   const id = document.getElementById('disciplineSelect').value;
   const { data: discipline } = await supabase.from('discipliny').select('*').eq('id', id).single();
-
   const formContainer = document.getElementById('formContainer');
   formContainer.innerHTML = `
     <h3>Zadání výsledků</h3>
     <input type="text" id="prijmeni" placeholder="Příjmení"><br>
     <input type="text" id="jmeno" placeholder="Jméno"><br>
     ${discipline.typ === 'beh' ? 
-      '<input type="number" id="cas" placeholder="Výkon (v sekundách)">' : 
+      '<input type="number" id="cas" placeholder="Čas v sekundách">' :
       `
-      <input type="number" id="pokus_1" placeholder="Pokus 1 (m)">
-      <input type="number" id="pokus_2" placeholder="Pokus 2 (m)">
-      <input type="number" id="pokus_3" placeholder="Pokus 3 (m)">
+      <input type="number" id="pokus_1" placeholder="Pokus 1 (m)"><br>
+      <input type="number" id="pokus_2" placeholder="Pokus 2 (m)"><br>
+      <input type="number" id="pokus_3" placeholder="Pokus 3 (m)"><br>
       `
     }
     <button onclick="saveResult('${id}', '${discipline.typ}')">Uložit výsledek</button>
@@ -40,15 +40,21 @@ async function showForm() {
   loadResults(id, discipline.typ);
 }
 
+document.getElementById('disciplineSelect').addEventListener('change', showForm);
+
 // Uložit výsledek
-async function saveResult(id, typ) {
-  const prijmeni = document.getElementById('prijmeni').value;
-  const jmeno = document.getElementById('jmeno').value;
+async function saveResult(disciplinaId, typ) {
+  const prijmeni = document.getElementById('prijmeni').value.trim();
+  const jmeno = document.getElementById('jmeno').value.trim();
+  if (!prijmeni || !jmeno) {
+    alert('Vyplň příjmení a jméno!');
+    return;
+  }
   let vykon = null;
   let pokusy = [null, null, null];
-
   if (typ === 'beh') {
     vykon = parseFloat(document.getElementById('cas').value);
+    if (isNaN(vykon)) { alert('Vyplň čas!'); return; }
   } else {
     pokusy = [
       parseFloat(document.getElementById('pokus_1').value),
@@ -56,69 +62,60 @@ async function saveResult(id, typ) {
       parseFloat(document.getElementById('pokus_3').value)
     ];
     vykon = Math.max(...pokusy.filter(p => !isNaN(p)));
+    if (!vykon) { alert('Vyplň alespoň jeden pokus!'); return; }
   }
 
-  const { error } = await supabase.from('vysledky').insert({
-    disciplina_id: id,
-    prijmeni,
-    jmeno,
-    pokus_1: pokusy[0],
-    pokus_2: pokusy[1],
-    pokus_3: pokusy[2],
+  let { data: zavodnik } = await supabase.from('zavodnici').select('*')
+    .eq('prijmeni', prijmeni).eq('jmeno', jmeno).single();
+  if (!zavodnik) {
+    const { data: newZavodnik } = await supabase.from('zavodnici').insert({ prijmeni, jmeno }).select().single();
+    zavodnik = newZavodnik;
+  }
+
+  await supabase.from('vysledky').insert({
+    disciplina_id: disciplinaId,
+    zavodnik_id: zavodnik.id,
     cas: typ === 'beh' ? vykon : null,
+    pokus_1: typ === 'technika' ? pokusy[0] : null,
+    pokus_2: typ === 'technika' ? pokusy[1] : null,
+    pokus_3: typ === 'technika' ? pokusy[2] : null,
     nejlepsi: typ === 'technika' ? vykon : null
   });
 
-  if (error) {
-    console.error('Chyba ukládání:', error);
-    alert('Chyba ukládání!');
-  } else {
-    alert('Výsledek uložen.');
-    showForm(); // Znovu načíst formulář i výsledky
-  }
+  alert('Výsledek uložen.');
+  showForm();
 }
 
-// Načíst a zobrazit výsledky
-async function loadResults(id, typ) {
-  const { data: results, error } = await supabase.from('vysledky').select('*').eq('disciplina_id', id);
+// Načíst výsledky
+async function loadResults(disciplinaId, typ) {
+  const { data } = await supabase.from('vysledky')
+    .select('*, zavodnici ( prijmeni, jmeno )')
+    .eq('disciplina_id', disciplinaId);
+
   const container = document.getElementById('resultsContainer');
   container.innerHTML = '';
 
-  if (error) {
-    console.error('Chyba načítání výsledků:', error);
-    return;
-  }
-
-  // Výpočty bodů
-  results.forEach(r => {
+  data.forEach(r => {
     r.body = 0;
     if (typ === 'beh' && r.cas !== null) {
-      r.body = calculatePoints(results.map(x => x.cas), r.cas, false);
+      r.body = calculatePoints(data.map(x => x.cas), r.cas, false);
     } else if (typ === 'technika' && r.nejlepsi !== null) {
-      r.body = calculatePoints(results.map(x => x.nejlepsi), r.nejlepsi, true);
+      r.body = calculatePoints(data.map(x => x.nejlepsi), r.nejlepsi, true);
     }
   });
 
-  // Seřazení podle bodů
-  results.sort((a, b) => b.body - a.body);
+  data.sort((a, b) => b.body - a.body);
 
   const table = document.createElement('table');
   table.innerHTML = `
-    <tr>
-      <th>Pořadí</th>
-      <th>Příjmení</th>
-      <th>Jméno</th>
-      <th>Výkon</th>
-      <th>Body</th>
-    </tr>
+    <tr><th>Pořadí</th><th>Příjmení</th><th>Jméno</th><th>Výkon</th><th>Body</th></tr>
   `;
-
-  results.forEach((r, idx) => {
+  data.forEach((r, idx) => {
     const row = document.createElement('tr');
     row.innerHTML = `
       <td>${idx + 1}</td>
-      <td>${r.prijmeni}</td>
-      <td>${r.jmeno}</td>
+      <td>${r.zavodnici.prijmeni}</td>
+      <td>${r.zavodnici.jmeno}</td>
       <td>${typ === 'beh' ? r.cas : r.nejlepsi}</td>
       <td>${r.body}</td>
     `;
@@ -133,9 +130,25 @@ function calculatePoints(vykony, vykon, isTechnika) {
   vykony = vykony.filter(v => v !== null);
   vykony.sort((a, b) => isTechnika ? b - a : a - b);
   const rank = vykony.indexOf(vykon);
-  const points = [10, 8, 6, 5, 4, 3, 2, 1];
+  const points = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1];
   return points[rank] || 0;
 }
 
-// Načíst disciplíny po načtení stránky
-loadDisciplines();
+// Vypočítat souhrn bodů
+document.getElementById('vypocitatBodyButton').addEventListener('click', async () => {
+  const { data } = await supabase.from('vysledky')
+    .select('*, zavodnici ( prijmeni, jmeno, kategorie, pohlavi ), discipliny ( typ )');
+
+  const summary = {};
+
+  data.forEach(r => {
+    const key = `${r.zavodnici.kategorie} - ${r.zavodnici.pohlavi}`;
+    if (!summary[key]) summary[key] = {};
+    const vykon = r.discipliny.typ === 'beh' ? r.cas : r.nejlepsi;
+    const bod = calculatePoints(
+      data.filter(x => x.disciplina_id === r.disciplina_id)
+          .map(x => r.discipliny.typ === 'beh' ? x.cas : x.nejlepsi),
+      vykon,
+      r.discipliny.typ !== 'beh'
+    );
+    const zavodnik = `${r.zavodnici.pr
