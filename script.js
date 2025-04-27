@@ -1,5 +1,6 @@
+const supabase = window.supabaseClient;
 
-
+// Načíst disciplíny
 async function loadDisciplines() {
   const select = document.getElementById('disciplineSelect');
   select.innerHTML = '';
@@ -16,6 +17,7 @@ async function loadDisciplines() {
   });
 }
 
+// Po výběru disciplíny
 async function showForm() {
   const id = document.getElementById('disciplineSelect').value;
   const { data: discipline } = await supabase.from('discipliny').select('*').eq('id', id).single();
@@ -35,6 +37,7 @@ async function showForm() {
 
 document.getElementById('disciplineSelect').addEventListener('change', showForm);
 
+// Uložit výsledek
 async function saveResult(disciplinaId, typ) {
   const prijmeni = document.getElementById('prijmeni').value.trim();
   const jmeno = document.getElementById('jmeno').value.trim();
@@ -58,38 +61,42 @@ async function saveResult(disciplinaId, typ) {
   }
 
   try {
-    let { data: zavodnik } = await supabase.from('zavodnici').select('*')
-      .eq('prijmeni', prijmeni).eq('jmeno', jmeno).single();
+    let { data: zavodnik } = await supabase
+      .from('zavodnici')
+      .select('*')
+      .match({ prijmeni: prijmeni, jmeno: jmeno })
+      .single();
+
     if (!zavodnik) {
       const { data: newZavodnik } = await supabase.from('zavodnici').insert({ prijmeni, jmeno }).select().single();
       zavodnik = newZavodnik;
     }
 
-    const { data: insertData, error: insertError } = await supabase.from('vysledky').insert({
-        disciplina_id: disciplinaId,
-        zavodnik_id: zavodnik.id,
-        cas: typ === 'beh' ? vykon : null,
-        pokus_1: typ === 'technika' ? pokusy[0] : null,
-        pokus_2: typ === 'technika' ? pokusy[1] : null,
-        pokus_3: typ === 'technika' ? pokusy[2] : null,
-        nejlepsi: typ === 'technika' ? vykon : null
-      }).select();
-      
-      if (insertError) {
-        console.error('Chyba ukládání:', insertError);
-        alert('Chyba při ukládání: ' + insertError.message);  // << teď ti to ukáže přesně proč
-        return;
+    const { error: insertError } = await supabase.from('vysledky').insert({
+      disciplina_id: disciplinaId,
+      zavodnik_id: zavodnik.id,
+      cas: typ === 'beh' ? vykon : null,
+      pokus_1: typ === 'technika' ? pokusy[0] : null,
+      pokus_2: typ === 'technika' ? pokusy[1] : null,
+      pokus_3: typ === 'technika' ? pokusy[2] : null,
+      nejlepsi: typ === 'technika' ? vykon : null
+    });
+
+    if (insertError) {
+      alert('Chyba při ukládání výsledku: ' + insertError.message);
+      return;
     }
 
     alert('Výsledek uložen.');
-    showForm(); // obnoví formulář a výsledky hned
+    showForm(); // Aktualizace formuláře a výsledků
 
   } catch (err) {
     console.error('Chyba:', err);
-    alert('Chyba při ukládání.');
+    alert('Chyba při komunikaci se serverem.');
   }
 }
 
+// Načíst výsledky
 async function loadResults(disciplinaId, typ) {
   const { data } = await supabase.from('vysledky')
     .select('*, zavodnici ( prijmeni, jmeno )')
@@ -110,7 +117,7 @@ async function loadResults(disciplinaId, typ) {
   data.sort((a, b) => b.body - a.body);
 
   const table = document.createElement('table');
-  table.id = 'resultsTable'; // přidáme ID pro export
+  table.id = 'resultsTable';
   table.innerHTML = `
     <tr><th>Příjmení</th><th>Jméno</th><th>Výkon</th><th>Body</th></tr>
   `;
@@ -128,6 +135,7 @@ async function loadResults(disciplinaId, typ) {
   container.appendChild(table);
 }
 
+// Výpočet bodů
 function calculatePoints(vykony, vykon, isTechnika) {
   vykony = vykony.filter(v => v !== null);
   vykony.sort((a, b) => isTechnika ? b - a : a - b);
@@ -136,6 +144,7 @@ function calculatePoints(vykony, vykon, isTechnika) {
   return points[rank] || 0;
 }
 
+// Souhrn bodů
 document.getElementById('vypocitatBodyButton').addEventListener('click', async () => {
   const { data } = await supabase.from('vysledky')
     .select('*, zavodnici ( prijmeni, jmeno, kategorie, pohlavi ), discipliny ( typ )');
@@ -179,15 +188,18 @@ document.getElementById('vypocitatBodyButton').addEventListener('click', async (
   }
 });
 
+// Export PDF
 document.getElementById('exportPdfButton').addEventListener('click', () => {
   const element = document.getElementById('resultsTable');
   html2pdf().from(element).save('vysledky.pdf');
 });
 
+// Export Excel
 document.getElementById('exportExcelButton').addEventListener('click', () => {
   const table = document.getElementById('resultsTable');
   const wb = XLSX.utils.table_to_book(table);
   XLSX.writeFile(wb, 'vysledky.xlsx');
 });
 
+// Start
 loadDisciplines();
