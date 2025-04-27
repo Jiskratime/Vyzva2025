@@ -1,4 +1,3 @@
-const supabase = window.supabaseClient;
 
 // Načíst disciplíny
 async function loadDisciplines() {
