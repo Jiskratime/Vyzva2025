@@ -65,20 +65,20 @@ async function saveResult(disciplinaId, typ) {
       zavodnik = newZavodnik;
     }
 
-    const { error } = await supabase.from('vysledky').insert({
-      disciplina_id: disciplinaId,
-      zavodnik_id: zavodnik.id,
-      cas: typ === 'beh' ? vykon : null,
-      pokus_1: typ === 'technika' ? pokusy[0] : null,
-      pokus_2: typ === 'technika' ? pokusy[1] : null,
-      pokus_3: typ === 'technika' ? pokusy[2] : null,
-      nejlepsi: typ === 'technika' ? vykon : null
-    });
-
-    if (error) {
-      console.error('Chyba ukládání:', error);
-      alert('Chyba při ukládání výsledku.');
-      return;
+    const { data: insertData, error: insertError } = await supabase.from('vysledky').insert({
+        disciplina_id: disciplinaId,
+        zavodnik_id: zavodnik.id,
+        cas: typ === 'beh' ? vykon : null,
+        pokus_1: typ === 'technika' ? pokusy[0] : null,
+        pokus_2: typ === 'technika' ? pokusy[1] : null,
+        pokus_3: typ === 'technika' ? pokusy[2] : null,
+        nejlepsi: typ === 'technika' ? vykon : null
+      }).select();
+      
+      if (insertError) {
+        console.error('Chyba ukládání:', insertError);
+        alert('Chyba při ukládání: ' + insertError.message);  // << teď ti to ukáže přesně proč
+        return;
     }
 
     alert('Výsledek uložen.');
