@@ -1,7 +1,6 @@
-// Připojení k Supabase (už vytvořeno v config.js)
+
 const supabase = window.supabaseClient;
 
-// Načíst disciplíny
 async function loadDisciplines() {
   const select = document.getElementById('disciplineSelect');
   select.innerHTML = '';
@@ -18,7 +17,6 @@ async function loadDisciplines() {
   });
 }
 
-// Po výběru disciplíny
 async function showForm() {
   const id = document.getElementById('disciplineSelect').value;
   const { data: discipline } = await supabase.from('discipliny').select('*').eq('id', id).single();
@@ -29,11 +27,7 @@ async function showForm() {
     <input type="text" id="jmeno" placeholder="Jméno"><br>
     ${discipline.typ === 'beh' ? 
       '<input type="number" id="cas" placeholder="Čas v sekundách">' :
-      `
-      <input type="number" id="pokus_1" placeholder="Pokus 1 (m)"><br>
-      <input type="number" id="pokus_2" placeholder="Pokus 2 (m)"><br>
-      <input type="number" id="pokus_3" placeholder="Pokus 3 (m)"><br>
-      `
+      '<input type="number" id="pokus_1" placeholder="Pokus 1 (m)"><br><input type="number" id="pokus_2" placeholder="Pokus 2 (m)"><br><input type="number" id="pokus_3" placeholder="Pokus 3 (m)"><br>'
     }
     <button onclick="saveResult('${id}', '${discipline.typ}')">Uložit výsledek</button>
   `;
@@ -42,7 +36,6 @@ async function showForm() {
 
 document.getElementById('disciplineSelect').addEventListener('change', showForm);
 
-// Uložit výsledek
 async function saveResult(disciplinaId, typ) {
   const prijmeni = document.getElementById('prijmeni').value.trim();
   const jmeno = document.getElementById('jmeno').value.trim();
@@ -86,7 +79,6 @@ async function saveResult(disciplinaId, typ) {
   showForm();
 }
 
-// Načíst výsledky
 async function loadResults(disciplinaId, typ) {
   const { data } = await supabase.from('vysledky')
     .select('*, zavodnici ( prijmeni, jmeno )')
@@ -125,7 +117,6 @@ async function loadResults(disciplinaId, typ) {
   container.appendChild(table);
 }
 
-// Výpočet bodů
 function calculatePoints(vykony, vykon, isTechnika) {
   vykony = vykony.filter(v => v !== null);
   vykony.sort((a, b) => isTechnika ? b - a : a - b);
@@ -134,7 +125,6 @@ function calculatePoints(vykony, vykon, isTechnika) {
   return points[rank] || 0;
 }
 
-// Vypočítat souhrn bodů
 document.getElementById('vypocitatBodyButton').addEventListener('click', async () => {
   const { data } = await supabase.from('vysledky')
     .select('*, zavodnici ( prijmeni, jmeno, kategorie, pohlavi ), discipliny ( typ )');
@@ -151,4 +141,42 @@ document.getElementById('vypocitatBodyButton').addEventListener('click', async (
       vykon,
       r.discipliny.typ !== 'beh'
     );
-    const zavodnik = `${r.zavodnici.pr
+    const zavodnik = `${r.zavodnici.prijmeni} ${r.zavodnici.jmeno}`;
+    if (!summary[key][zavodnik]) summary[key][zavodnik] = 0;
+    summary[key][zavodnik] += bod;
+  });
+
+  const container = document.getElementById('summaryContainer');
+  container.innerHTML = '';
+
+  for (const group in summary) {
+    const h2 = document.createElement('h2');
+    h2.textContent = group;
+    container.appendChild(h2);
+
+    const table = document.createElement('table');
+    table.innerHTML = `<tr><th>Příjmení a jméno</th><th>Body celkem</th></tr>`;
+
+    const sorted = Object.entries(summary[group]).sort((a, b) => b[1] - a[1]);
+    sorted.forEach(([name, points]) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `<td>${name}</td><td>${points}</td>`;
+      table.appendChild(row);
+    });
+
+    container.appendChild(table);
+  }
+});
+
+document.getElementById('exportPdfButton').addEventListener('click', () => {
+  const element = document.getElementById('summaryContainer');
+  html2pdf().from(element).save('vysledky.pdf');
+});
+
+document.getElementById('exportExcelButton').addEventListener('click', () => {
+  const table = document.querySelector('#summaryContainer table');
+  const wb = XLSX.utils.table_to_book(table);
+  XLSX.writeFile(wb, 'vysledky.xlsx');
+});
+
+loadDisciplines();
