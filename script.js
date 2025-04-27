@@ -1,136 +1,146 @@
+// Připojení na Supabase
+const SUPABASE_URL = 'https://lmcmwrehrmgygsnyofdf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // Tvůj správný klíč
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const client = window.supabaseClient;
-
-// Načti disciplíny
+// Načíst disciplíny do selectu
 async function loadDisciplines() {
-    const { data, error } = await client.from('discipliny').select('*').order('nazev');
-    if (error) {
-        console.error('Chyba při načítání disciplín:', error);
-        return;
-    }
-    const select = document.getElementById('disciplineSelect');
-    data.forEach(d => {
-        const option = document.createElement('option');
-        option.value = JSON.stringify(d);
-        option.textContent = `${d.nazev} | ${d.kategorie} | ${d.pohlavi}`;
-        select.appendChild(option);
-    });
+  const { data, error } = await supabase.from('discipliny').select('*').order('nazev');
+  const select = document.getElementById('disciplineSelect');
+  select.innerHTML = ''; // Vyčistit select
+  if (error) {
+    console.error('Chyba načítání disciplín:', error);
+    return;
+  }
+  data.forEach(d => {
+    const option = document.createElement('option');
+    option.value = d.id;
+    option.textContent = `${d.nazev} – ${d.kategorie} – ${d.pohlavi}`;
+    select.appendChild(option);
+  });
 }
 
-// Zobraz výsledky
-async function zobrazVysledky() {
-    const selected = document.getElementById('disciplineSelect').value;
-    if (!selected) return;
-    const discipline = JSON.parse(selected);
-    const isTrack = discipline.typ === 'beh';
+// Po výběru disciplíny ukázat formulář
+document.getElementById('disciplineSelect').addEventListener('change', showForm);
 
-    const { data, error } = await client.from('vysledky')
-        .select(`id, cas, nejlepsi, zavodnik: zavodnik_id (jmeno, prijmeni)`)
-        .eq('disciplina_id', discipline.id)
-        .order(isTrack ? 'cas' : 'nejlepsi', { ascending: true });
+async function showForm() {
+  const id = document.getElementById('disciplineSelect').value;
+  const { data: discipline } = await supabase.from('discipliny').select('*').eq('id', id).single();
 
-    const container = document.getElementById('resultsContainer');
-    container.innerHTML = '';
-
-    if (error) {
-        console.error('Chyba při načítání výsledků:', error);
-        return;
+  const formContainer = document.getElementById('formContainer');
+  formContainer.innerHTML = `
+    <h3>Zadání výsledků</h3>
+    <input type="text" id="prijmeni" placeholder="Příjmení"><br>
+    <input type="text" id="jmeno" placeholder="Jméno"><br>
+    ${discipline.typ === 'beh' ? 
+      '<input type="number" id="cas" placeholder="Výkon (v sekundách)">' : 
+      `
+      <input type="number" id="pokus_1" placeholder="Pokus 1 (m)">
+      <input type="number" id="pokus_2" placeholder="Pokus 2 (m)">
+      <input type="number" id="pokus_3" placeholder="Pokus 3 (m)">
+      `
     }
-    if (!data || data.length === 0) {
-        container.innerHTML = '<p>Žádné výsledky.</p>';
-        return;
-    }
+    <button onclick="saveResult('${id}', '${discipline.typ}')">Uložit výsledek</button>
+  `;
+  loadResults(id, discipline.typ);
+}
 
-    const table = document.createElement('table');
-    table.innerHTML = `
-        <thead>
-            <tr><th>Pořadí</th><th>Jméno</th><th>Příjmení</th><th>${isTrack ? 'Čas (s)' : 'Výkon (m)'}</th></tr>
-        </thead>
-        <tbody>
-            ${data.map((row, index) => `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${row.zavodnik?.jmeno || ''}</td>
-                    <td>${row.zavodnik?.prijmeni || ''}</td>
-                    <td>${isTrack ? row.cas : row.nejlepsi}</td>
-                </tr>
-            `).join('')}
-        </tbody>
+// Uložit výsledek
+async function saveResult(id, typ) {
+  const prijmeni = document.getElementById('prijmeni').value;
+  const jmeno = document.getElementById('jmeno').value;
+  let vykon = null;
+  let pokusy = [null, null, null];
+
+  if (typ === 'beh') {
+    vykon = parseFloat(document.getElementById('cas').value);
+  } else {
+    pokusy = [
+      parseFloat(document.getElementById('pokus_1').value),
+      parseFloat(document.getElementById('pokus_2').value),
+      parseFloat(document.getElementById('pokus_3').value)
+    ];
+    vykon = Math.max(...pokusy.filter(p => !isNaN(p)));
+  }
+
+  const { error } = await supabase.from('vysledky').insert({
+    disciplina_id: id,
+    prijmeni,
+    jmeno,
+    pokus_1: pokusy[0],
+    pokus_2: pokusy[1],
+    pokus_3: pokusy[2],
+    cas: typ === 'beh' ? vykon : null,
+    nejlepsi: typ === 'technika' ? vykon : null
+  });
+
+  if (error) {
+    console.error('Chyba ukládání:', error);
+    alert('Chyba ukládání!');
+  } else {
+    alert('Výsledek uložen.');
+    showForm(); // Znovu načíst formulář i výsledky
+  }
+}
+
+// Načíst a zobrazit výsledky
+async function loadResults(id, typ) {
+  const { data: results, error } = await supabase.from('vysledky').select('*').eq('disciplina_id', id);
+  const container = document.getElementById('resultsContainer');
+  container.innerHTML = '';
+
+  if (error) {
+    console.error('Chyba načítání výsledků:', error);
+    return;
+  }
+
+  // Výpočty bodů
+  results.forEach(r => {
+    r.body = 0;
+    if (typ === 'beh' && r.cas !== null) {
+      r.body = calculatePoints(results.map(x => x.cas), r.cas, false);
+    } else if (typ === 'technika' && r.nejlepsi !== null) {
+      r.body = calculatePoints(results.map(x => x.nejlepsi), r.nejlepsi, true);
+    }
+  });
+
+  // Seřazení podle bodů
+  results.sort((a, b) => b.body - a.body);
+
+  const table = document.createElement('table');
+  table.innerHTML = `
+    <tr>
+      <th>Pořadí</th>
+      <th>Příjmení</th>
+      <th>Jméno</th>
+      <th>Výkon</th>
+      <th>Body</th>
+    </tr>
+  `;
+
+  results.forEach((r, idx) => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${idx + 1}</td>
+      <td>${r.prijmeni}</td>
+      <td>${r.jmeno}</td>
+      <td>${typ === 'beh' ? r.cas : r.nejlepsi}</td>
+      <td>${r.body}</td>
     `;
-    container.appendChild(table);
+    table.appendChild(row);
+  });
+
+  container.appendChild(table);
 }
 
-// Výpočet souhrnného bodování
-async function vypocitejSouhrnBodu() {
-    const { data, error } = await client.from('vysledky')
-        .select('id, cas, nejlepsi, zavodnik: zavodnik_id (jmeno, prijmeni, kategorie, pohlavi), disciplina: disciplina_id (typ, kategorie, pohlavi)');
-    
-    const container = document.getElementById('resultsTableContainer');
-    container.innerHTML = '';
-
-    if (error) {
-        console.error('Chyba při načítání výsledků:', error);
-        return;
-    }
-
-    if (!data || data.length === 0) {
-        container.innerHTML = '<p>Žádné výsledky k výpočtu.</p>';
-        return;
-    }
-
-    const body = {};
-
-    data.forEach(row => {
-        const zavodnik = row.zavodnik;
-        if (!zavodnik) return;
-        const key = `${zavodnik.prijmeni}_${zavodnik.jmeno}_${zavodnik.kategorie}_${zavodnik.pohlavi}`;
-        if (!body[key]) body[key] = { jmeno: zavodnik.jmeno, prijmeni: zavodnik.prijmeni, kategorie: zavodnik.kategorie, pohlavi: zavodnik.pohlavi, body: 0 };
-        body[key].body += 10; // Zatím pevně 10 bodů za každý záznam (pak lze upravit podle pořadí)
-    });
-
-    const bodyArray = Object.values(body).sort((a, b) => b.body - a.body);
-
-    const table = document.createElement('table');
-    table.innerHTML = `
-        <thead>
-            <tr><th>Pořadí</th><th>Jméno</th><th>Příjmení</th><th>Kategorie</th><th>Pohlaví</th><th>Body</th></tr>
-        </thead>
-        <tbody>
-            ${bodyArray.map((row, index) => `
-                <tr>
-                    <td>${index + 1}</td>
-                    <td>${row.jmeno}</td>
-                    <td>${row.prijmeni}</td>
-                    <td>${row.kategorie}</td>
-                    <td>${row.pohlavi}</td>
-                    <td>${row.body}</td>
-                </tr>
-            `).join('')}
-        </tbody>
-    `;
-    container.appendChild(table);
+// Výpočet bodů
+function calculatePoints(vykony, vykon, isTechnika) {
+  vykony = vykony.filter(v => v !== null);
+  vykony.sort((a, b) => isTechnika ? b - a : a - b);
+  const rank = vykony.indexOf(vykon);
+  const points = [10, 8, 6, 5, 4, 3, 2, 1];
+  return points[rank] || 0;
 }
 
-// Export výsledků
-function exportToPDF() {
-    const table = document.querySelector('#resultsContainer table');
-    if (!table) return alert('Žádná tabulka k exportu.');
-    const opt = { margin: 1, filename: 'vysledky.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' } };
-    html2pdf().from(table).set(opt).save();
-}
-
-function exportToExcel() {
-    const table = document.querySelector('#resultsContainer table');
-    if (!table) return alert('Žádná tabulka k exportu.');
-    const wb = XLSX.utils.table_to_book(table, { sheet: "Výsledky" });
-    XLSX.writeFile(wb, "vysledky.xlsx");
-}
-
-// Eventy
-document.getElementById('disciplineSelect').addEventListener('change', zobrazVysledky);
-document.getElementById('vypocitatBodyButton').addEventListener('click', vypocitejSouhrnBodu);
-document.getElementById('exportPDF').addEventListener('click', exportToPDF);
-document.getElementById('exportExcel').addEventListener('click', exportToExcel);
-
-// Inicializace
+// Načíst disciplíny po načtení stránky
 loadDisciplines();
