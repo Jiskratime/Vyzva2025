@@ -1,5 +1,4 @@
 
-const supabase = window.supabaseClient;
 
 async function loadDisciplines() {
   const select = document.getElementById('disciplineSelect');
