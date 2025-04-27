@@ -200,5 +200,7 @@ async function loadDisciplines() {
   });
   
   // Start
-  loadDisciplines();
+  document.addEventListener('DOMContentLoaded', () => {
+    loadDisciplines();
+});
   
