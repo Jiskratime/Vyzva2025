@@ -1,4 +1,5 @@
 
+const supabase = window.supabaseClient;
 
 async function loadDisciplines() {
   const select = document.getElementById('disciplineSelect');
@@ -57,25 +58,37 @@ async function saveResult(disciplinaId, typ) {
     if (!vykon) { alert('Vyplň alespoň jeden pokus!'); return; }
   }
 
-  let { data: zavodnik } = await supabase.from('zavodnici').select('*')
-    .eq('prijmeni', prijmeni).eq('jmeno', jmeno).single();
-  if (!zavodnik) {
-    const { data: newZavodnik } = await supabase.from('zavodnici').insert({ prijmeni, jmeno }).select().single();
-    zavodnik = newZavodnik;
+  try {
+    let { data: zavodnik } = await supabase.from('zavodnici').select('*')
+      .eq('prijmeni', prijmeni).eq('jmeno', jmeno).single();
+    if (!zavodnik) {
+      const { data: newZavodnik } = await supabase.from('zavodnici').insert({ prijmeni, jmeno }).select().single();
+      zavodnik = newZavodnik;
+    }
+
+    const { error } = await supabase.from('vysledky').insert({
+      disciplina_id: disciplinaId,
+      zavodnik_id: zavodnik.id,
+      cas: typ === 'beh' ? vykon : null,
+      pokus_1: typ === 'technika' ? pokusy[0] : null,
+      pokus_2: typ === 'technika' ? pokusy[1] : null,
+      pokus_3: typ === 'technika' ? pokusy[2] : null,
+      nejlepsi: typ === 'technika' ? vykon : null
+    });
+
+    if (error) {
+      console.error('Chyba ukládání:', error);
+      alert('Chyba při ukládání výsledku.');
+      return;
+    }
+
+    alert('Výsledek uložen.');
+    showForm(); // obnoví formulář a výsledky hned
+
+  } catch (err) {
+    console.error('Chyba:', err);
+    alert('Chyba při ukládání.');
   }
-
-  await supabase.from('vysledky').insert({
-    disciplina_id: disciplinaId,
-    zavodnik_id: zavodnik.id,
-    cas: typ === 'beh' ? vykon : null,
-    pokus_1: typ === 'technika' ? pokusy[0] : null,
-    pokus_2: typ === 'technika' ? pokusy[1] : null,
-    pokus_3: typ === 'technika' ? pokusy[2] : null,
-    nejlepsi: typ === 'technika' ? vykon : null
-  });
-
-  alert('Výsledek uložen.');
-  showForm();
 }
 
 async function loadResults(disciplinaId, typ) {
@@ -98,13 +111,13 @@ async function loadResults(disciplinaId, typ) {
   data.sort((a, b) => b.body - a.body);
 
   const table = document.createElement('table');
+  table.id = 'resultsTable'; // přidáme ID pro export
   table.innerHTML = `
-    <tr><th>Pořadí</th><th>Příjmení</th><th>Jméno</th><th>Výkon</th><th>Body</th></tr>
+    <tr><th>Příjmení</th><th>Jméno</th><th>Výkon</th><th>Body</th></tr>
   `;
-  data.forEach((r, idx) => {
+  data.forEach(r => {
     const row = document.createElement('tr');
     row.innerHTML = `
-      <td>${idx + 1}</td>
       <td>${r.zavodnici.prijmeni}</td>
       <td>${r.zavodnici.jmeno}</td>
       <td>${typ === 'beh' ? r.cas : r.nejlepsi}</td>
@@ -168,12 +181,12 @@ document.getElementById('vypocitatBodyButton').addEventListener('click', async (
 });
 
 document.getElementById('exportPdfButton').addEventListener('click', () => {
-  const element = document.getElementById('summaryContainer');
+  const element = document.getElementById('resultsTable');
   html2pdf().from(element).save('vysledky.pdf');
 });
 
 document.getElementById('exportExcelButton').addEventListener('click', () => {
-  const table = document.querySelector('#summaryContainer table');
+  const table = document.getElementById('resultsTable');
   const wb = XLSX.utils.table_to_book(table);
   XLSX.writeFile(wb, 'vysledky.xlsx');
 });
