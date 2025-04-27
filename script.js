@@ -1,8 +1,3 @@
-// Připojení na Supabase
-const SUPABASE_URL = 'https://lmcmwrehrmgygsnyofdf.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // Tvůj správný klíč
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
 // Načíst disciplíny do selectu
 async function loadDisciplines() {
   const { data, error } = await supabase.from('discipliny').select('*').order('nazev');
