@@ -1,4 +1,4 @@
-
+const supabase = window.supabaseClient;
 // Načíst disciplíny
 async function loadDisciplines() {
   const select = document.getElementById('disciplineSelect');
