@@ -19,6 +19,11 @@ async function loadDisciplines() {
   async function showForm() {
     const id = document.getElementById('disciplineSelect').value;
     const { data: discipline } = await window.supabaseClient.from('discipliny').select('*').eq('id', id).single();
+  
+    // Uložíme aktuální kategorii a pohlaví do window
+    window.selectedKategorie = discipline.kategorie;
+    window.selectedPohlavi = discipline.pohlavi;
+  
     const formContainer = document.getElementById('formContainer');
     formContainer.innerHTML = `
       <h3>Zadání výsledků</h3>
@@ -31,6 +36,8 @@ async function loadDisciplines() {
       <button onclick="saveResult('${id}', '${discipline.typ}')">Uložit výsledek</button>
     `;
     loadResults(id, discipline.typ);
+  }
+  
   }
   
   document.getElementById('disciplineSelect').addEventListener('change', showForm);
@@ -59,7 +66,6 @@ async function loadDisciplines() {
     }
   
     try {
-      // Hledání závodníka přes eq()
       let { data: zavodnik, error: zavError } = await window.supabaseClient
         .from('zavodnici')
         .select('*')
@@ -68,17 +74,20 @@ async function loadDisciplines() {
         .single();
   
       if (zavError && zavError.code !== 'PGRST116') {
-        // PGRST116 = Not found při .single(), je OK → budeme zakládat nového
         console.error('Chyba při hledání závodníka:', zavError.message);
         alert('Chyba při hledání závodníka: ' + zavError.message);
         return;
       }
   
       if (!zavodnik) {
-        // Pokud závodník neexistuje, založíme ho
         const { data: newZavodnik, error: insertZavError } = await window.supabaseClient
           .from('zavodnici')
-          .insert({ prijmeni, jmeno })
+          .insert({
+            prijmeni,
+            jmeno,
+            kategorie: window.selectedKategorie, // přidáno
+            pohlavi: window.selectedPohlavi      // přidáno
+          })
           .select()
           .single();
   
@@ -89,7 +98,6 @@ async function loadDisciplines() {
         zavodnik = newZavodnik;
       }
   
-      // Uložení výsledku
       const { error: insertError } = await window.supabaseClient.from('vysledky').insert({
         disciplina_id: disciplinaId,
         zavodnik_id: zavodnik.id,
@@ -106,13 +114,14 @@ async function loadDisciplines() {
       }
   
       alert('Výsledek uložen.');
-      showForm(); // obnoví formulář a výsledky hned
+      showForm(); // obnoví formulář a výsledky
   
     } catch (err) {
       console.error('Chyba komunikace se serverem:', err);
       alert('Chyba při komunikaci se serverem.');
     }
   }
+  
 
   // Načíst výsledky
   async function loadResults(disciplinaId, typ) {
