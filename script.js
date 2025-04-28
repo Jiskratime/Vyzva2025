@@ -235,45 +235,90 @@ async function loadDisciplines() {
   // Souhrn bodů
   document.getElementById('vypocitatBodyButton').addEventListener('click', async () => {
     const { data } = await window.supabaseClient.from('vysledky')
-      .select('*, zavodnici ( prijmeni, jmeno, kategorie, pohlavi ), discipliny ( typ )');
+      .select('*, zavodnici ( prijmeni, jmeno, kategorie, pohlavi ), discipliny ( typ, nazev )');
   
     const summary = {};
   
-    data.forEach(r => {
-      // Filtr na aktuální kategorii a pohlaví
-      if (r.zavodnici.kategorie !== window.selectedKategorie || r.zavodnici.pohlavi !== window.selectedPohlavi) {
-        return; // přeskočit, nepatří do vybrané disciplíny
+    // Vyfiltrujeme jen vybranou kategorii + pohlaví
+    const filtered = data.filter(r =>
+      r.zavodnici.kategorie === window.selectedKategorie &&
+      r.zavodnici.pohlavi === window.selectedPohlavi
+    );
+  
+    // Seskupíme výsledky podle disciplíny
+    const disciplinyMap = {};
+  
+    filtered.forEach(r => {
+      if (!disciplinyMap[r.disciplina_id]) {
+        disciplinyMap[r.disciplina_id] = {
+          typ: r.discipliny.typ,
+          nazev: r.discipliny.nazev,
+          vysledky: []
+        };
       }
-  
-      const key = `${r.zavodnici.kategorie} - ${r.zavodnici.pohlavi}`;
-      if (!summary[key]) summary[key] = {};
-  
-      const zavodnik = `${r.zavodnici.prijmeni} ${r.zavodnici.jmeno}`;
-      if (!summary[key][zavodnik]) summary[key][zavodnik] = 0;
-  
-      summary[key][zavodnik] += r.body || 0;
+      disciplinyMap[r.disciplina_id].vysledky.push(r);
     });
   
+    // Přidělíme body v každé disciplíně
+    for (const disciplinaId in disciplinyMap) {
+      const disc = disciplinyMap[disciplinaId];
+      const isBeh = disc.typ === 'beh';
+      const isKriket = disc.nazev.toLowerCase().includes('kriket');
+  
+      disc.vysledky.forEach(r => {
+        if (isBeh) {
+          r.sortValue = r.cas !== null ? r.cas : Number.MAX_VALUE;
+        } else {
+          const pokusy = [
+            r.pokus_1 !== null ? (isKriket ? r.pokus_1 : r.pokus_1 / 100) : -1,
+            r.pokus_2 !== null ? (isKriket ? r.pokus_2 : r.pokus_2 / 100) : -1,
+            r.pokus_3 !== null ? (isKriket ? r.pokus_3 : r.pokus_3 / 100) : -1
+          ];
+          pokusy.sort((a, b) => b - a);
+          r.vykonySorted = pokusy;
+        }
+      });
+  
+      if (isBeh) {
+        disc.vysledky.sort((a, b) => a.sortValue - b.sortValue);
+      } else {
+        disc.vysledky.sort((a, b) => {
+          for (let i = 0; i < Math.max(a.vykonySorted.length, b.vykonySorted.length); i++) {
+            if ((b.vykonySorted[i] || -1) !== (a.vykonySorted[i] || -1)) {
+              return (b.vykonySorted[i] || -1) - (a.vykonySorted[i] || -1);
+            }
+          }
+          return 0;
+        });
+      }
+  
+      const points = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1];
+      disc.vysledky.forEach((r, index) => {
+        const zavodnik = `${r.zavodnici.prijmeni} ${r.zavodnici.jmeno}`;
+        if (!summary[zavodnik]) summary[zavodnik] = 0;
+        summary[zavodnik] += points[index] || 0;
+      });
+    }
+  
+    // Vykreslíme souhrn bodů
     const container = document.getElementById('summaryContainer');
     container.innerHTML = '';
   
-    for (const group in summary) {
-      const h2 = document.createElement('h2');
-      h2.textContent = group;
-      container.appendChild(h2);
+    const h2 = document.createElement('h2');
+    h2.textContent = `${window.selectedKategorie} - ${window.selectedPohlavi}`;
+    container.appendChild(h2);
   
-      const table = document.createElement('table');
-      table.innerHTML = `<tr><th>Příjmení a jméno</th><th>Body celkem</th></tr>`;
+    const table = document.createElement('table');
+    table.innerHTML = `<tr><th>Příjmení a jméno</th><th>Body celkem</th></tr>`;
   
-      const sorted = Object.entries(summary[group]).sort((a, b) => b[1] - a[1]);
-      sorted.forEach(([name, points]) => {
-        const row = document.createElement('tr');
-        row.innerHTML = `<td>${name}</td><td>${points}</td>`;
-        table.appendChild(row);
-      });
+    const sortedSummary = Object.entries(summary).sort((a, b) => b[1] - a[1]);
+    sortedSummary.forEach(([name, points]) => {
+      const row = document.createElement('tr');
+      row.innerHTML = `<td>${name}</td><td>${points}</td>`;
+      table.appendChild(row);
+    });
   
-      container.appendChild(table);
-    }
+    container.appendChild(table);
   });
   
  
