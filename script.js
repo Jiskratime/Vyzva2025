@@ -320,8 +320,19 @@ async function loadDisciplines() {
   
     container.appendChild(table);
   });
+  // Export PDF
+  document.getElementById('exportPdfButton').addEventListener('click', () => {
+    const element = document.createElement('div');
+    const table = document.getElementById('resultsTable').cloneNode(true);
+    const footer = document.createElement('p');
+    footer.style.marginTop = '20px';
+    footer.style.textAlign = 'center';
+    footer.textContent = 'JiskraTime';
+    element.appendChild(table);
+    element.appendChild(footer);
+    html2pdf().from(element).save('vysledky.pdf');
+  });
   
- 
   // Export Excel
   document.getElementById('exportExcelButton').addEventListener('click', () => {
     const table = document.getElementById('resultsTable');
