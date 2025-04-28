@@ -59,17 +59,37 @@ async function loadDisciplines() {
     }
   
     try {
-      let { data: zavodnik } = await window.supabaseClient
+      // Hledání závodníka přes eq()
+      let { data: zavodnik, error: zavError } = await window.supabaseClient
         .from('zavodnici')
         .select('*')
-        .match({ prijmeni: prijmeni, jmeno: jmeno })
+        .eq('prijmeni', prijmeni)
+        .eq('jmeno', jmeno)
         .single();
   
+      if (zavError && zavError.code !== 'PGRST116') {
+        // PGRST116 = Not found při .single(), je OK → budeme zakládat nového
+        console.error('Chyba při hledání závodníka:', zavError.message);
+        alert('Chyba při hledání závodníka: ' + zavError.message);
+        return;
+      }
+  
       if (!zavodnik) {
-        const { data: newZavodnik } = await window.supabaseClient.from('zavodnici').insert({ prijmeni, jmeno }).select().single();
+        // Pokud závodník neexistuje, založíme ho
+        const { data: newZavodnik, error: insertZavError } = await window.supabaseClient
+          .from('zavodnici')
+          .insert({ prijmeni, jmeno })
+          .select()
+          .single();
+  
+        if (insertZavError) {
+          alert('Chyba při zakládání závodníka: ' + insertZavError.message);
+          return;
+        }
         zavodnik = newZavodnik;
       }
   
+      // Uložení výsledku
       const { error: insertError } = await window.supabaseClient.from('vysledky').insert({
         disciplina_id: disciplinaId,
         zavodnik_id: zavodnik.id,
@@ -86,14 +106,14 @@ async function loadDisciplines() {
       }
   
       alert('Výsledek uložen.');
-      showForm(); // Aktualizace formuláře a výsledků
+      showForm(); // obnoví formulář a výsledky hned
   
     } catch (err) {
-      console.error('Chyba:', err);
+      console.error('Chyba komunikace se serverem:', err);
       alert('Chyba při komunikaci se serverem.');
     }
   }
-  
+
   // Načíst výsledky
   async function loadResults(disciplinaId, typ) {
     const { data } = await window.supabaseClient.from('vysledky')
