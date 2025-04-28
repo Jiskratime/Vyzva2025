@@ -132,44 +132,96 @@ async function loadDisciplines() {
     const container = document.getElementById('resultsContainer');
     container.innerHTML = '';
   
+    // Připravíme pomocné řazení
     data.forEach(r => {
       r.body = 0;
-      if (typ === 'beh' && r.cas !== null) {
-        r.body = calculatePoints(data.map(x => x.cas), r.cas, false);
-      } else if (typ === 'technika' && r.nejlepsi !== null) {
-        r.body = calculatePoints(data.map(x => x.nejlepsi), r.nejlepsi, true);
+  
+      if (typ === 'beh') {
+        r.sortValue = r.cas !== null ? r.cas : Number.MAX_VALUE; // čím menší čas, tím lepší
+      } else {
+        // U technických disciplín řadíme podle všech pokusů
+        r.sortValue = [
+          r.nejlepsi !== null ? r.nejlepsi : -1,
+          r.pokus_1 !== null ? r.pokus_1 : -1,
+          r.pokus_2 !== null ? r.pokus_2 : -1,
+          r.pokus_3 !== null ? r.pokus_3 : -1
+        ];
       }
     });
   
-    data.sort((a, b) => b.body - a.body);
+    // Řazení závodníků
+    if (typ === 'beh') {
+      data.sort((a, b) => a.sortValue - b.sortValue);
+    } else {
+      data.sort((a, b) => {
+        for (let i = 0; i < a.sortValue.length; i++) {
+          if (b.sortValue[i] !== a.sortValue[i]) {
+            return b.sortValue[i] - a.sortValue[i]; // vyšší hodnota je lepší
+          }
+        }
+        return 0;
+      });
+    }
   
+    // Přidělení pořadí a bodů
+    const points = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1];
+    data.forEach((r, index) => {
+      r.poradi = index + 1;
+      r.body = points[index] || 0;
+    });
+  
+    // Vytvoření tabulky
     const table = document.createElement('table');
     table.id = 'resultsTable';
-    table.innerHTML = `
-      <tr><th>Příjmení</th><th>Jméno</th><th>Výkon</th><th>Body</th></tr>
-    `;
+  
+    if (typ === 'beh') {
+      table.innerHTML = `
+        <tr><th>Pořadí</th><th>Příjmení</th><th>Jméno</th><th>Čas (s)</th><th>Body</th></tr>
+      `;
+    } else {
+      table.innerHTML = `
+        <tr><th>Pořadí</th><th>Příjmení</th><th>Jméno</th><th>Pokus 1 (m)</th><th>Pokus 2 (m)</th><th>Pokus 3 (m)</th><th>Nejlepší (m)</th><th>Body</th></tr>
+      `;
+    }
+  
     data.forEach(r => {
       const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${r.zavodnici.prijmeni}</td>
-        <td>${r.zavodnici.jmeno}</td>
-        <td>${typ === 'beh' ? r.cas : r.nejlepsi}</td>
-        <td>${r.body}</td>
-      `;
+  
+      if (typ === 'beh') {
+        row.innerHTML = `
+          <td>${r.poradi}</td>
+          <td>${r.zavodnici.prijmeni}</td>
+          <td>${r.zavodnici.jmeno}</td>
+          <td>${r.cas !== null ? r.cas : ''}</td>
+          <td>${r.body}</td>
+        `;
+      } else {
+        row.innerHTML = `
+          <td>${r.poradi}</td>
+          <td>${r.zavodnici.prijmeni}</td>
+          <td>${r.zavodnici.jmeno}</td>
+          <td>${r.pokus_1 !== null ? r.pokus_1 : ''}</td>
+          <td>${r.pokus_2 !== null ? r.pokus_2 : ''}</td>
+          <td>${r.pokus_3 !== null ? r.pokus_3 : ''}</td>
+          <td class="best-pokus">${r.nejlepsi !== null ? r.nejlepsi : ''}</td>
+          <td>${r.body}</td>
+        `;
+      }
+  
       table.appendChild(row);
     });
   
     container.appendChild(table);
+  
+    // Podbarvit nejlepší pokusy
+    if (typ !== 'beh') {
+      const bestCells = document.querySelectorAll('.best-pokus');
+      bestCells.forEach(cell => {
+        cell.style.backgroundColor = '#fff8b3'; // světle žlutá
+      });
+    }
   }
   
-  // Výpočet bodů
-  function calculatePoints(vykony, vykon, isTechnika) {
-    vykony = vykony.filter(v => v !== null);
-    vykony.sort((a, b) => isTechnika ? b - a : a - b);
-    const rank = vykony.indexOf(vykon);
-    const points = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1];
-    return points[rank] || 0;
-  }
   
   // Souhrn bodů
   document.getElementById('vypocitatBodyButton').addEventListener('click', async () => {
