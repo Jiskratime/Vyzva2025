@@ -240,13 +240,18 @@ async function loadDisciplines() {
     const summary = {};
   
     data.forEach(r => {
+      // Filtr na aktuální kategorii a pohlaví
+      if (r.zavodnici.kategorie !== window.selectedKategorie || r.zavodnici.pohlavi !== window.selectedPohlavi) {
+        return; // přeskočit, nepatří do vybrané disciplíny
+      }
+  
       const key = `${r.zavodnici.kategorie} - ${r.zavodnici.pohlavi}`;
       if (!summary[key]) summary[key] = {};
   
       const zavodnik = `${r.zavodnici.prijmeni} ${r.zavodnici.jmeno}`;
       if (!summary[key][zavodnik]) summary[key][zavodnik] = 0;
   
-      summary[key][zavodnik] += r.body || 0; // součet existujících bodů
+      summary[key][zavodnik] += r.body || 0;
     });
   
     const container = document.getElementById('summaryContainer');
@@ -271,20 +276,6 @@ async function loadDisciplines() {
     }
   });
   
-  
-  // Export PDF
-  document.getElementById('exportPdfButton').addEventListener('click', () => {
-    const element = document.createElement('div');
-    const table = document.getElementById('resultsTable').cloneNode(true);
-    const footer = document.createElement('p');
-    footer.style.marginTop = '20px';
-    footer.style.textAlign = 'center';
-    footer.textContent = 'JiskraTime';
-    element.appendChild(table);
-    element.appendChild(footer);
-    html2pdf().from(element).save('vysledky.pdf');
-  });
-
  
   // Export Excel
   document.getElementById('exportExcelButton').addEventListener('click', () => {
