@@ -242,16 +242,11 @@ async function loadDisciplines() {
     data.forEach(r => {
       const key = `${r.zavodnici.kategorie} - ${r.zavodnici.pohlavi}`;
       if (!summary[key]) summary[key] = {};
-      const vykon = r.discipliny.typ === 'beh' ? r.cas : r.nejlepsi;
-      const bod = calculatePoints(
-        data.filter(x => x.disciplina_id === r.disciplina_id)
-            .map(x => r.discipliny.typ === 'beh' ? x.cas : x.nejlepsi),
-        vykon,
-        r.discipliny.typ !== 'beh'
-      );
+  
       const zavodnik = `${r.zavodnici.prijmeni} ${r.zavodnici.jmeno}`;
       if (!summary[key][zavodnik]) summary[key][zavodnik] = 0;
-      summary[key][zavodnik] += bod;
+  
+      summary[key][zavodnik] += r.body || 0; // součet existujících bodů
     });
   
     const container = document.getElementById('summaryContainer');
@@ -275,6 +270,7 @@ async function loadDisciplines() {
       container.appendChild(table);
     }
   });
+  
   
   // Export PDF
   document.getElementById('exportPdfButton').addEventListener('click', () => {
