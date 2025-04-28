@@ -125,6 +125,19 @@ async function loadDisciplines() {
 
   // Načíst výsledky
   async function loadResults(disciplinaId, typ) {
+    const { data: disciplinaData, error: discError } = await window.supabaseClient
+      .from('discipliny')
+      .select('*')
+      .eq('id', disciplinaId)
+      .single();
+  
+    if (discError) {
+      alert('Chyba při načítání disciplíny.');
+      return;
+    }
+  
+    const isKriket = disciplinaData.nazev.toLowerCase().includes('kriket');
+  
     const { data } = await window.supabaseClient.from('vysledky')
       .select('*, zavodnici ( prijmeni, jmeno )')
       .eq('disciplina_id', disciplinaId);
@@ -132,38 +145,36 @@ async function loadDisciplines() {
     const container = document.getElementById('resultsContainer');
     container.innerHTML = '';
   
-    // Připravíme pomocné řazení
+    // Připravíme pokusy a pořadí
     data.forEach(r => {
-      r.body = 0;
-  
       if (typ === 'beh') {
-        r.sortValue = r.cas !== null ? r.cas : Number.MAX_VALUE; // čím menší čas, tím lepší
+        r.sortValue = r.cas !== null ? r.cas : Number.MAX_VALUE;
       } else {
-        // U technických disciplín řadíme podle všech pokusů
-        r.sortValue = [
-          r.nejlepsi !== null ? r.nejlepsi : -1,
-          r.pokus_1 !== null ? r.pokus_1 : -1,
-          r.pokus_2 !== null ? r.pokus_2 : -1,
-          r.pokus_3 !== null ? r.pokus_3 : -1
+        const pokusy = [
+          r.pokus_1 !== null ? (isKriket ? r.pokus_1 : r.pokus_1 / 100) : -1,
+          r.pokus_2 !== null ? (isKriket ? r.pokus_2 : r.pokus_2 / 100) : -1,
+          r.pokus_3 !== null ? (isKriket ? r.pokus_3 : r.pokus_3 / 100) : -1
         ];
+        pokusy.sort((a, b) => b - a);
+        r.vykonySorted = pokusy;
       }
     });
   
-    // Řazení závodníků
+    // Seřadit závodníky
     if (typ === 'beh') {
       data.sort((a, b) => a.sortValue - b.sortValue);
     } else {
       data.sort((a, b) => {
-        for (let i = 0; i < a.sortValue.length; i++) {
-          if (b.sortValue[i] !== a.sortValue[i]) {
-            return b.sortValue[i] - a.sortValue[i]; // vyšší hodnota je lepší
+        for (let i = 0; i < Math.max(a.vykonySorted.length, b.vykonySorted.length); i++) {
+          if ((b.vykonySorted[i] || -1) !== (a.vykonySorted[i] || -1)) {
+            return (b.vykonySorted[i] || -1) - (a.vykonySorted[i] || -1);
           }
         }
         return 0;
       });
     }
   
-    // Přidělení pořadí a bodů
+    // Přidělit pořadí a body
     const points = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1];
     data.forEach((r, index) => {
       r.poradi = index + 1;
@@ -180,7 +191,7 @@ async function loadDisciplines() {
       `;
     } else {
       table.innerHTML = `
-        <tr><th>Pořadí</th><th>Příjmení</th><th>Jméno</th><th>Pokus 1 (m)</th><th>Pokus 2 (m)</th><th>Pokus 3 (m)</th><th>Nejlepší (m)</th><th>Body</th></tr>
+        <tr><th>Pořadí</th><th>Příjmení</th><th>Jméno</th><th>Pokus 1 (cm)</th><th>Pokus 2 (cm)</th><th>Pokus 3 (cm)</th><th>Nejlepší (cm)</th><th>Body</th></tr>
       `;
     }
   
@@ -196,14 +207,15 @@ async function loadDisciplines() {
           <td>${r.body}</td>
         `;
       } else {
+        const best = Math.max(r.pokus_1 || -1, r.pokus_2 || -1, r.pokus_3 || -1);
         row.innerHTML = `
           <td>${r.poradi}</td>
           <td>${r.zavodnici.prijmeni}</td>
           <td>${r.zavodnici.jmeno}</td>
-          <td>${r.pokus_1 !== null ? r.pokus_1 : ''}</td>
-          <td>${r.pokus_2 !== null ? r.pokus_2 : ''}</td>
-          <td>${r.pokus_3 !== null ? r.pokus_3 : ''}</td>
-          <td class="best-pokus">${r.nejlepsi !== null ? r.nejlepsi : ''}</td>
+          <td class="pokus-cell ${r.pokus_1 === best ? 'best' : ''}">${r.pokus_1 !== null ? r.pokus_1 : ''}</td>
+          <td class="pokus-cell ${r.pokus_2 === best ? 'best' : ''}">${r.pokus_2 !== null ? r.pokus_2 : ''}</td>
+          <td class="pokus-cell ${r.pokus_3 === best ? 'best' : ''}">${r.pokus_3 !== null ? r.pokus_3 : ''}</td>
+          <td>${best !== -1 ? best : ''}</td>
           <td>${r.body}</td>
         `;
       }
@@ -214,14 +226,11 @@ async function loadDisciplines() {
     container.appendChild(table);
   
     // Podbarvit nejlepší pokusy
-    if (typ !== 'beh') {
-      const bestCells = document.querySelectorAll('.best-pokus');
-      bestCells.forEach(cell => {
-        cell.style.backgroundColor = '#fff8b3'; // světle žlutá
-      });
-    }
+    const bestCells = document.querySelectorAll('.pokus-cell.best');
+    bestCells.forEach(cell => {
+      cell.style.backgroundColor = '#fff8b3'; // světle žlutá
+    });
   }
-  
   
   // Souhrn bodů
   document.getElementById('vypocitatBodyButton').addEventListener('click', async () => {
@@ -269,10 +278,18 @@ async function loadDisciplines() {
   
   // Export PDF
   document.getElementById('exportPdfButton').addEventListener('click', () => {
-    const element = document.getElementById('resultsTable');
+    const element = document.createElement('div');
+    const table = document.getElementById('resultsTable').cloneNode(true);
+    const footer = document.createElement('p');
+    footer.style.marginTop = '20px';
+    footer.style.textAlign = 'center';
+    footer.textContent = 'JiskraTime';
+    element.appendChild(table);
+    element.appendChild(footer);
     html2pdf().from(element).save('vysledky.pdf');
   });
-  
+
+ 
   // Export Excel
   document.getElementById('exportExcelButton').addEventListener('click', () => {
     const table = document.getElementById('resultsTable');
