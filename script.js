@@ -38,7 +38,7 @@ async function loadDisciplines() {
     loadResults(id, discipline.typ);
   }
   
-  }
+ 
   
   document.getElementById('disciplineSelect').addEventListener('change', showForm);
   
