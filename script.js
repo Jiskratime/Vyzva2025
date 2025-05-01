@@ -20,36 +20,122 @@ async function loadDisciplines() {
     const id = document.getElementById('disciplineSelect').value;
     const { data: discipline } = await window.supabaseClient.from('discipliny').select('*').eq('id', id).single();
   
-    // Uložíme aktuální kategorii a pohlaví do window
     window.selectedKategorie = discipline.kategorie;
     window.selectedPohlavi = discipline.pohlavi;
   
     const formContainer = document.getElementById('formContainer');
-    formContainer.innerHTML = `
-      <h3>Zadání výsledků</h3>
-      <input type="text" id="prijmeni" placeholder="Příjmení"><br>
-      <input type="text" id="jmeno" placeholder="Jméno"><br>
-      ${discipline.typ === 'beh' ? 
-        '<input type="number" id="cas" placeholder="Čas v sekundách">' :
-        '<input type="number" id="pokus_1" placeholder="Pokus 1 (m)"><br><input type="number" id="pokus_2" placeholder="Pokus 2 (m)"><br><input type="number" id="pokus_3" placeholder="Pokus 3 (m)"><br>'
-      }
-      <button onclick="saveResult('${id}', '${discipline.typ}')">Uložit výsledek</button>
+    formContainer.innerHTML = `<h3>Zadání výsledků</h3>`;
+  
+    // Načíst závodníky dané kategorie a pohlaví
+    const { data: zavodnici } = await window.supabaseClient
+      .from('zavodnici')
+      .select('*')
+      .eq('kategorie', discipline.kategorie)
+      .eq('pohlavi', discipline.pohlavi);
+  
+    // Select závodníka
+    let selectHTML = `<label>Závodník:</label><select id="zavodnikSelect">
+        <option value="">-- nový závodník --</option>`;
+    zavodnici.forEach(z => {
+      selectHTML += `<option value="${z.id}" data-jmeno="${z.jmeno}" data-prijmeni="${z.prijmeni}">
+        ${z.prijmeni} ${z.jmeno}
+      </option>`;
+    });
+    selectHTML += `</select><br>`;
+  
+    formContainer.innerHTML += selectHTML;
+  
+    // Pole pro nový zápis
+    formContainer.innerHTML += `
+      <div id="novyZavodnik">
+        <input type="text" id="prijmeni" placeholder="Příjmení"><br>
+        <input type="text" id="jmeno" placeholder="Jméno"><br>
+      </div>
     `;
+  
+    // Výkonová pole
+    if (discipline.typ === 'beh') {
+      formContainer.innerHTML += `<input type="number" id="cas" placeholder="Čas v sekundách"><br>`;
+    } else {
+      formContainer.innerHTML += `
+        <input type="number" id="pokus_1" placeholder="Pokus 1 (cm/metry)"><br>
+        <input type="number" id="pokus_2" placeholder="Pokus 2 (cm/metry)"><br>
+        <input type="number" id="pokus_3" placeholder="Pokus 3 (cm/metry)"><br>
+      `;
+    }
+  
+    formContainer.innerHTML += `<button onclick="saveResult('${id}', '${discipline.typ}')">Uložit výsledek</button>`;
+  
+    // Skrýt / vyplnit jméno podle výběru
+    document.getElementById('zavodnikSelect').addEventListener('change', (e) => {
+      const selected = e.target.options[e.target.selectedIndex];
+      if (e.target.value) {
+        document.getElementById('prijmeni').value = selected.dataset.prijmeni;
+        document.getElementById('jmeno').value = selected.dataset.jmeno;
+        document.getElementById('novyZavodnik').style.display = 'none';
+      } else {
+        document.getElementById('prijmeni').value = '';
+        document.getElementById('jmeno').value = '';
+        document.getElementById('novyZavodnik').style.display = 'block';
+      }
+    });
+  
     loadResults(id, discipline.typ);
   }
-  
  
   
+   
   document.getElementById('disciplineSelect').addEventListener('change', showForm);
   
   // Uložit výsledek
   async function saveResult(disciplinaId, typ) {
-    const prijmeni = document.getElementById('prijmeni').value.trim();
-    const jmeno = document.getElementById('jmeno').value.trim();
-    if (!prijmeni || !jmeno) {
+    const zavodnikId = document.getElementById('zavodnikSelect').value;
+    let prijmeni = document.getElementById('prijmeni').value.trim();
+    let jmeno = document.getElementById('jmeno').value.trim();
+    let zavodnik = null;
+  
+    if (!zavodnikId && (!prijmeni || !jmeno)) {
       alert('Vyplň příjmení a jméno!');
       return;
     }
+  
+    if (zavodnikId) {
+      zavodnik = { id: zavodnikId };
+    } else {
+      // Zkontroluj, zda závodník náhodou už neexistuje
+      let { data: existing, error } = await window.supabaseClient
+        .from('zavodnici')
+        .select('*')
+        .eq('jmeno', jmeno)
+        .eq('prijmeni', prijmeni)
+        .eq('kategorie', window.selectedKategorie)
+        .eq('pohlavi', window.selectedPohlavi)
+        .single();
+  
+      if (!existing) {
+        // Vlož nového závodníka
+        const { data: newZavodnik, error: insertError } = await window.supabaseClient
+          .from('zavodnici')
+          .insert({
+            jmeno,
+            prijmeni,
+            kategorie: window.selectedKategorie,
+            pohlavi: window.selectedPohlavi
+          })
+          .select()
+          .single();
+  
+        if (insertError) {
+          alert('Chyba při zakládání závodníka: ' + insertError.message);
+          return;
+        }
+        zavodnik = newZavodnik;
+      } else {
+        zavodnik = existing;
+      }
+    }
+  
+    // Výkonová data
     let vykon = null;
     let pokusy = [null, null, null];
     if (typ === 'beh') {
@@ -65,61 +151,24 @@ async function loadDisciplines() {
       if (!vykon) { alert('Vyplň alespoň jeden pokus!'); return; }
     }
   
-    try {
-      let { data: zavodnik, error: zavError } = await window.supabaseClient
-        .from('zavodnici')
-        .select('*')
-        .eq('prijmeni', prijmeni)
-        .eq('jmeno', jmeno)
-        .single();
+    // Ulož výsledek
+    const { error: insertError } = await window.supabaseClient.from('vysledky').insert({
+      disciplina_id: disciplinaId,
+      zavodnik_id: zavodnik.id,
+      cas: typ === 'beh' ? vykon : null,
+      pokus_1: typ === 'technika' ? pokusy[0] : null,
+      pokus_2: typ === 'technika' ? pokusy[1] : null,
+      pokus_3: typ === 'technika' ? pokusy[2] : null,
+      nejlepsi: typ === 'technika' ? vykon : null
+    });
   
-      if (zavError && zavError.code !== 'PGRST116') {
-        console.error('Chyba při hledání závodníka:', zavError.message);
-        alert('Chyba při hledání závodníka: ' + zavError.message);
-        return;
-      }
-  
-      if (!zavodnik) {
-        const { data: newZavodnik, error: insertZavError } = await window.supabaseClient
-          .from('zavodnici')
-          .insert({
-            prijmeni,
-            jmeno,
-            kategorie: window.selectedKategorie, // přidáno
-            pohlavi: window.selectedPohlavi      // přidáno
-          })
-          .select()
-          .single();
-  
-        if (insertZavError) {
-          alert('Chyba při zakládání závodníka: ' + insertZavError.message);
-          return;
-        }
-        zavodnik = newZavodnik;
-      }
-  
-      const { error: insertError } = await window.supabaseClient.from('vysledky').insert({
-        disciplina_id: disciplinaId,
-        zavodnik_id: zavodnik.id,
-        cas: typ === 'beh' ? vykon : null,
-        pokus_1: typ === 'technika' ? pokusy[0] : null,
-        pokus_2: typ === 'technika' ? pokusy[1] : null,
-        pokus_3: typ === 'technika' ? pokusy[2] : null,
-        nejlepsi: typ === 'technika' ? vykon : null
-      });
-  
-      if (insertError) {
-        alert('Chyba při ukládání výsledku: ' + insertError.message);
-        return;
-      }
-  
-      alert('Výsledek uložen.');
-      showForm(); // obnoví formulář a výsledky
-  
-    } catch (err) {
-      console.error('Chyba komunikace se serverem:', err);
-      alert('Chyba při komunikaci se serverem.');
+    if (insertError) {
+      alert('Chyba při ukládání výsledku: ' + insertError.message);
+      return;
     }
+  
+    alert('Výsledek uložen.');
+    showForm(); // obnoví formulář
   }
   
 
